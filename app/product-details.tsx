@@ -1,11 +1,11 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, LoaderCircle, Trash2 } from 'lucide-react';
-import type { DeleteProgress, Kind, Photo, Product } from './cloud';
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react';
+import { generatedImages, type GeneratedImage, type DeleteProgress, type Kind, type Photo, type Product } from './cloud';
 
-type Filter = 'all' | Kind;
+type Filter = 'all' | 'main' | 'color' | 'other';
 type Props = {
   product: Product;
   images: Photo[];
@@ -44,6 +44,15 @@ export default function ProductDetails({
   const [deleteProgress, setDeleteProgress] = useState<DeleteProgress | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [folderCopied, setFolderCopied] = useState(false);
+  const [generated, setGenerated] = useState<GeneratedImage[]>([]);
+  const [generatedLoading, setGeneratedLoading] = useState(true);
+  const [generatedError, setGeneratedError] = useState('');
+  const [refreshCount, setRefreshCount] = useState(0);
+  useEffect(() => {
+    let active = true;
+    generatedImages(product.id).then(items => { if(active){setGenerated(items);setGeneratedError('');} }).catch(error => { if(active)setGeneratedError(error instanceof Error ? error.message : 'Could not load generated images'); }).finally(() => { if(active)setGeneratedLoading(false); });
+    return () => { active = false; };
+  }, [product.id, refreshCount]);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -203,6 +212,26 @@ export default function ProductDetails({
             </div>
           )}
         </div>
+
+        <section className="generated-gallery" aria-labelledby="generated-gallery-title">
+          <div className="generated-gallery-header">
+            <div>
+              <p className="eyebrow">GENERATED FOLDER</p>
+              <h2 id="generated-gallery-title">Generated images <span className="generated-count">{generated.length}</span></h2>
+            </div>
+            <button type="button" className="details-copy" disabled={generatedLoading} onClick={() => {setGeneratedLoading(true);setRefreshCount(x=>x+1);}} aria-label="Refresh generated images">
+              <RefreshCw size={17} aria-hidden="true" /> Refresh
+            </button>
+          </div>
+          {generatedLoading ? <p className="generated-empty" role="status">Checking generated folder…</p> :
+            generatedError ? <p className="generated-error" role="alert">{generatedError}</p> :
+            generated.length ? <div className="generated-grid">{generated.map(image => (
+              <a key={image.path} href={image.url} target="_blank" rel="noopener noreferrer" className="generated-image-card" title={image.name}>
+                <img src={image.url} alt={image.name} loading="lazy" />
+                <span>{image.name} <ExternalLink size={13} aria-hidden="true" /></span>
+              </a>
+            ))}</div> : <p className="generated-empty">No generated images yet. Images added to this product’s generated folder will appear here when refreshed.</p>}
+        </section>
 
         {product.description && (
           <section className="details-description" aria-labelledby="details-description-title">
