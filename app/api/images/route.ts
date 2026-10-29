@@ -20,7 +20,7 @@ export async function POST(req:NextRequest){
  try{
   const form=await req.formData(),file=form.get('file'),productId=String(form.get('productId')||''),kind=String(form.get('kind')||'');
   if(!(file instanceof File)||!['main','color','other'].includes(kind)||!/^[0-9a-f-]{36}$/i.test(productId))return NextResponse.json({error:'Invalid image upload'},{status:400});
-  if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)||file.size>10*1024*1024)return NextResponse.json({error:'Use JPEG, PNG, WebP or GIF under 10 MB'},{status:400});
+  if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)||file.size>4*1024*1024)return NextResponse.json({error:'Use JPEG, PNG, WebP or GIF under 4 MB'},{status:400});
   const ext=({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'} as Record<string,string>)[file.type];
   const path='products/'+productId+'/'+(kind==='color'?'colors':kind)+'/'+crypto.randomUUID()+'.'+ext;
   const content=Buffer.from(await file.arrayBuffer()).toString('base64');
