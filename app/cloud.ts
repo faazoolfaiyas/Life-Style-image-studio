@@ -36,7 +36,26 @@ async function uploadWithProgress(form:FormData,token:string,onProgress:(percent
   xhr.send(form);
  });
 }
-export async function put(p:Product,onProgress?:(progress:UploadProgress)=>void){const user=await getUser();if(!user)throw Error('Please sign in first.');const uploaded:string[]=[];let inserted=false;const {data:{session}}=await supabase.auth.getSession();if(!session)throw Error('Please sign in first.');try{for(let i=0;i<p.photos.length;i++){const photo=p.photos[i];const blob=await(await fetch(photo.data)).blob();if(blob.size>4*1024*1024)throw Error('Image "'+photo.label+'" is over 4 MB. Please use a smaller image.');const form=new FormData();form.append('file',blob,photo.label);form.append('productId',p.id);form.append('kind',photo.kind);onProgress?.({index:i,total:p.photos.length,percent:0,name:photo.label,phase:'uploading'});const result=await uploadWithProgress(form,session.access_token,percent=>onProgress?.({index:i,total:p.photos.length,percent,name:photo.label,phase:'uploading'}));uploaded.push(result.path)}onProgress?.({index:p.photos.length,total:p.photos.length,percent:100,name:'Saving product',phase:'saving'});const {error}=await supabase.from('products').insert({id:p.id,owner_id:user.id,name:p.name,description:p.description});if(error)throw error;inserted=true;for(let i=0;i<p.photos.length;i++){const photo=p.photos[i];const {error:rowError}=await supabase.from('product_images').insert({product_id:p.id,owner_id:user.id,kind:photo.kind,storage_path:uploaded[i],filename:photo.label,sort_order:i});if(rowError)throw rowError}await api('/api/generated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({productId:p.id})})}catch(e){if(inserted)await supabase.from('products').delete().eq('id',p.id);throw e}}
+async function prepareUpload(blob:Blob):Promise<{file:Blob;extension:string}>{
+ const extension=blob.type==='image/jpeg'?'jpg':blob.type==='image/png'?'png':blob.type==='image/gif'?'gif':'webp';
+ if(blob.size<=3*1024*1024&&['image/jpeg','image/png','image/webp','image/gif'].includes(blob.type))return {file:blob,extension};
+ const bitmap=await createImageBitmap(blob);
+ try{
+  const scale=Math.min(1,2200/Math.max(bitmap.width,bitmap.height));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+  canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+  const context=canvas.getContext('2d');
+  if(!context)throw Error('Could not prepare the image');
+  context.drawImage(bitmap,0,0,canvas.width,canvas.height);
+  for(const quality of [0.85,0.7,0.55]){
+   const file=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/webp',quality));
+   if(file&&file.size<=3*1024*1024)return {file,extension:'webp'};
+  }
+  throw Error('This image is too large to upload. Try a smaller image.');
+ }finally{bitmap.close()}
+}
+export async function put(p:Product,onProgress?:(progress:UploadProgress)=>void){const user=await getUser();if(!user)throw Error('Please sign in first.');const uploaded:string[]=[];let inserted=false;const {data:{session}}=await supabase.auth.getSession();if(!session)throw Error('Please sign in first.');try{for(let i=0;i<p.photos.length;i++){const photo=p.photos[i];const blob=await(await fetch(photo.data)).blob();const prepared=await prepareUpload(blob);const form=new FormData();form.append('file',prepared.file,photo.label.replace(/\.[^.]+$/,'')+'.'+prepared.extension);form.append('productId',p.id);form.append('kind',photo.kind);onProgress?.({index:i,total:p.photos.length,percent:0,name:photo.label,phase:'uploading'});const result=await uploadWithProgress(form,session.access_token,percent=>onProgress?.({index:i,total:p.photos.length,percent,name:photo.label,phase:'uploading'}));uploaded.push(result.path)}onProgress?.({index:p.photos.length,total:p.photos.length,percent:100,name:'Saving product',phase:'saving'});const {error}=await supabase.from('products').insert({id:p.id,owner_id:user.id,name:p.name,description:p.description});if(error)throw error;inserted=true;for(let i=0;i<p.photos.length;i++){const photo=p.photos[i];const {error:rowError}=await supabase.from('product_images').insert({product_id:p.id,owner_id:user.id,kind:photo.kind,storage_path:uploaded[i],filename:photo.label,sort_order:i});if(rowError)throw rowError}await api('/api/generated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({productId:p.id})})}catch(e){if(inserted)await supabase.from('products').delete().eq('id',p.id);throw e}}
 export type DeleteProgress = {
   phase: 'loading' | 'images' | 'generated' | 'record' | 'storage' | 'complete';
   completed: number;
