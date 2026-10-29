@@ -115,7 +115,7 @@ export default function ProductDetails({
           {folderUrl && (
             <button type="button" onClick={() => setShareTarget({url:folderUrl!,title:'product folder'})} className="details-copy" aria-label="Copy product GitHub folder URL">
               <Copy size={18} aria-hidden="true" />
-              {folderCopied ? 'Copied' : 'Copy folder'}
+              Copy folder
             </button>
           )}
           <span className="details-action-separator" aria-hidden="true" />
