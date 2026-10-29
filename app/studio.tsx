@@ -8,8 +8,9 @@ function ImageInput({label,kind,photos,onAdd,onRemove}:{label:string;kind:Kind;p
 export default function Studio(){
 const [user,setUser]=useState<string|null>(null),[ready,setReady]=useState(false),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[signup,setSignup]=useState(false),[authBusy,setAuthBusy]=useState(false);
 const [progress,setProgress]=useState<UploadProgress|null>(null);
-useEffect(()=>{if(!busy)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='Images are still uploading.'};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[busy]);
+
 const [products,setProducts]=useState<Product[]>([]),[tab,setTab]=useState<'store'|'upload'>('store'),[selected,setSelected]=useState<string|null>(null),[search,setSearch]=useState(''),[filter,setFilter]=useState<'all'|Kind>('all'),[slide,setSlide]=useState(0),[name,setName]=useState(''),[description,setDescription]=useState(''),[photos,setPhotos]=useState<Photo[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[loaded,setLoaded]=useState(false),[copied,setCopied]=useState(false);
+useEffect(()=>{if(!busy)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='Images are still uploading.'};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[busy]);
 useEffect(()=>{let active=true;getUser().then(u=>{if(active){setUser(u?.id??null);setReady(true)}});const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{if(active){setUser(session?.user.id??null);setProducts([]);setLoaded(false)}});return()=>{active=false;subscription.unsubscribe()}},[]);
 useEffect(()=>{if(!ready||!user)return;let active=true;load().then(p=>{if(active)setProducts(p)}).catch(e=>{if(active)setError(e.message)}).finally(()=>{if(active)setLoaded(true)});return()=>{active=false}},[ready,user]);
 const chosen=products.find(p=>p.id===selected);
