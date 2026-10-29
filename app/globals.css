@@ -113,3 +113,15 @@
 .share-state h1{font-size:28px;font-weight:700}.share-state a{display:inline-flex;align-items:center;min-height:48px;color:#c4b5fd}
 @media(min-width:768px){.share-screen{padding:0 32px 64px}.share-header{min-height:84px}.share-brand{font-size:17px}.share-intro{padding:44px 0 34px}.share-sections{gap:40px;margin-top:38px}.share-image-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.share-image-card{padding:9px}.share-image-caption{padding:12px 8px 8px}.share-image-filename{font-size:14px}.share-description{padding:28px;margin-top:40px}}
 @media(prefers-reduced-motion:reduce){.auth-field input,.auth-submit{transition:none}}
+
+
+/* Native confirmation dialog uses the browser's accessible modal focus handling. */
+dialog.details-dialog{position:fixed;inset:0;margin:auto;max-width:min(390px,calc(100vw - 40px));color:#f7f2ff}
+dialog.details-dialog::backdrop{background:rgba(8,5,14,.84)}
+@media(min-width:768px) and (max-width:1023px){
+  .details-layout{grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr);grid-template-areas:"gallery summary" "gallery description";grid-template-rows:auto 1fr;gap:18px 20px;align-items:start}
+  .details-gallery{grid-row:1 / span 2}
+  .details-description{align-self:start}
+  .details-filters{gap:5px}
+  .details-filter{font-size:12px}
+}
