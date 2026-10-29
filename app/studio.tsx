@@ -14,8 +14,34 @@ const [uploadStep,setUploadStep]=useState<0|1|2>(0);
 
 const [products,setProducts]=useState<Product[]>([]),[tab,setTab]=useState<'store'|'upload'>('store'),[selected,setSelected]=useState<string|null>(null),[search,setSearch]=useState(''),[filter,setFilter]=useState<'all'|'main'|'color'|'other'>('all'),[slide,setSlide]=useState(0),[name,setName]=useState(''),[description,setDescription]=useState(''),[photos,setPhotos]=useState<Photo[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[loaded,setLoaded]=useState(false),[copied,setCopied]=useState(false);
 useEffect(()=>{if(!busy)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='Images are still uploading.'};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[busy]);
-useEffect(()=>{let active=true;getUser().then(u=>{if(active){setUser(u?.id??null);setReady(true)}});const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{if(active){setUser(session?.user.id??null);setProducts([]);setLoaded(false)}});return()=>{active=false;subscription.unsubscribe()}},[]);
+useEffect(()=>{
+ let active=true;
+ const timeout=window.setTimeout(()=>{if(active)setReady(true)},10000);
+ getUser().then(u=>{if(active){setUser(u?.id??null);setReady(true)}}).catch(()=>{if(active)setReady(true)}).finally(()=>clearTimeout(timeout));
+ const {data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
+  if(!active)return;
+  if(event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='INITIAL_SESSION'){
+   const nextUser=session?.user.id??null;
+   setUser(previous=>{
+    if(previous!==nextUser){setProducts([]);setLoaded(false)}
+    return nextUser;
+   });
+   setReady(true);
+  }
+ });
+ return()=>{active=false;clearTimeout(timeout);subscription.unsubscribe()};
+},[]);
 useEffect(()=>{if(!ready||!user)return;let active=true;load().then(p=>{if(active)setProducts(p)}).catch(e=>{if(active)setError(e.message)}).finally(()=>{if(active)setLoaded(true)});return()=>{active=false}},[ready,user]);
+useEffect(()=>{
+ if(!ready||!user||busy)return;
+ let active=true;
+ const refresh=()=>{if(!active||document.visibilityState==='hidden')return;load().then(p=>{if(active){setProducts(p);setLoaded(true);setError('')}}).catch(e=>{if(active){setError(e instanceof Error?e.message:'Could not refresh products');setLoaded(true)}})};
+ const onPageShow=(event:PageTransitionEvent)=>{if(event.persisted)refresh()};
+ document.addEventListener('visibilitychange',refresh);
+ window.addEventListener('focus',refresh);
+ window.addEventListener('pageshow',onPageShow);
+ return()=>{active=false;document.removeEventListener('visibilitychange',refresh);window.removeEventListener('focus',refresh);window.removeEventListener('pageshow',onPageShow)};
+},[ready,user,busy]);
 const chosen=products.find(p=>p.id===selected);
 const visible=useMemo(()=>products.filter(p=>p.name.toLowerCase().includes(search.toLowerCase().trim())),[products,search]);
 const images=chosen?.photos.filter(p=>filter==='all'||p.kind===filter)??[];
