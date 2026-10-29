@@ -46,7 +46,23 @@ async function imageAsFile(url:string,name:string):Promise<File>{
 }
 export default function ImageViewer({images,index,onClose}:{images:ViewImage[];index:number;onClose:()=>void}){
  const [active,setActive]=useState(index);
- const [shareOpen,setShareOpen]=useState(false);
+ const [sharing,setSharing]=useState(false);
+ const [shareError,setShareError]=useState('');
+ const shareImage=async()=>{
+  if(sharing)return;
+  setSharing(true);
+  setShareError('');
+  try{
+   const file=await imageAsFile(current.url,current.name);
+   if(typeof navigator.share!=='function'||!navigator.canShare?.({files:[file]})){
+    setShareError('This browser cannot share image files directly. Download the image and share it from your gallery.');
+    return;
+   }
+   await navigator.share({files:[file]});
+  }catch(error){
+   if((error as Error).name!=='AbortError')setShareError(error instanceof Error?error.message:'Could not share this image.');
+  }finally{setSharing(false)}
+ };
  const closeRef=useRef<HTMLButtonElement>(null);
  const current=images[active];
  useEffect(()=>{closeRef.current?.focus()},[]);
