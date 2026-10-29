@@ -142,3 +142,17 @@ dialog.details-dialog::backdrop{background:rgba(8,5,14,.84)}
   .details-copy svg{width:15px;height:15px}
   .details-delete{height:44px;min-width:44px;width:44px}
 }
+
+/* Real-time product deletion status inside the existing confirmation dialog. */
+.delete-progress{margin:0 0 22px;padding:15px;border:1px solid rgba(196,181,253,.23);border-radius:14px;background:rgba(124,58,237,.10)}
+.delete-progress-heading{display:flex;align-items:center;gap:10px;min-height:26px;font-size:14px;font-weight:650;line-height:1.5;color:#f0e7ff;overflow-wrap:anywhere}
+.delete-progress-spinner{flex:none;color:#c4b5fd;animation:delete-spin 1.2s linear infinite}
+.delete-progress-track{height:9px;overflow:hidden;margin-top:15px;border-radius:999px;background:rgba(221,198,255,.16)}
+.delete-progress-track>span{display:block;height:100%;border-radius:inherit;background:#a78bfa;transition:width .2s ease}
+.delete-progress-indeterminate>span{width:35%;animation:delete-indeterminate 1.4s ease-in-out infinite}
+.delete-progress-count,.delete-progress-note{margin-top:10px;color:#d0c3e5;font-size:13px;line-height:1.5}
+.delete-progress-error{margin-bottom:18px;padding:12px;border:1px solid rgba(251,113,133,.35);border-radius:12px;background:rgba(127,35,61,.15);color:#fecdd3;font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.details-dialog-confirm:disabled,.details-dialog-cancel:disabled{opacity:.55;cursor:wait}
+@keyframes delete-spin{to{transform:rotate(360deg)}}
+@keyframes delete-indeterminate{0%{transform:translateX(-110%)}50%{transform:translateX(130%)}100%{transform:translateX(330%)}}
+@media(prefers-reduced-motion:reduce){.delete-progress-spinner,.delete-progress-indeterminate>span{animation:none}.delete-progress-track>span{transition:none}}
