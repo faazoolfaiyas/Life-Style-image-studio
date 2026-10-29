@@ -49,6 +49,19 @@ export default async function SharedProduct({ params }: Props) {
       ? 'https://raw.githubusercontent.com/lifestylekky/Life-Style-image-studio-store-/main/' + path.slice(7)
       : db.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 
+  type GeneratedFile = { name:string; path:string; type:string };
+  let generated: GeneratedFile[] = [];
+  let generatedUnavailable = false;
+  try {
+    const url = 'https://api.github.com/repos/lifestylekky/Life-Style-image-studio-store-/contents/products/'+id+'/generated?ref=main';
+    const token = process.env.GITHUB_IMAGES_TOKEN;
+    const response = await fetch(url, {cache:'no-store',headers:{'Accept':'application/vnd.github+json',...(token?{'Authorization':'Bearer '+token}:{})}});
+    if (response.ok) {
+      const files = await response.json() as GeneratedFile[] | GeneratedFile;
+      if (Array.isArray(files)) generated = files.filter(file => file.type === 'file' && /\\.(jpe?g|png|webp|gif|avif)$/i.test(file.name));
+    } else if (response.status !== 404) generatedUnavailable = true;
+  } catch { generatedUnavailable = true; }
+
   const groups: { kind: ImageKind; title: string }[] = [
     { kind: 'main', title: 'Main product images' },
     { kind: 'color', title: 'Color set images' },
@@ -72,7 +85,7 @@ export default async function SharedProduct({ params }: Props) {
         <div className="share-intro">
           <p className="eyebrow">SHARED PRODUCT REFERENCE</p>
           <h1 className="share-title">{product.name}</h1>
-          <p className="share-summary">{photos.length} original reference images · Main photos and color variants</p>
+          <p className="share-summary">{photos.length} reference images · {generated.length} generated images</p>
         </div>
 
         <div className="share-sections">
@@ -115,6 +128,17 @@ export default async function SharedProduct({ params }: Props) {
               </section>
             );
           })}
+          <section className="share-section" aria-labelledby="share-generated-title">
+            <h2 id="share-generated-title" className="share-section-title">Generated images ({generated.length})</h2>
+            {generatedUnavailable ? <p className="generated-error">Generated images are temporarily unavailable.</p> :
+              generated.length ? <div className="share-image-grid">{generated.map(file => {
+                const url = 'https://raw.githubusercontent.com/lifestylekky/Life-Style-image-studio-store-/main/'+file.path.split('/').map(encodeURIComponent).join('/');
+                return <a key={file.path} className="share-image-card" href={url} target="_blank" rel="noopener noreferrer">
+                  <div className="share-image-frame"><img src={url} alt={file.name} loading="lazy" decoding="async" /></div>
+                  <div className="share-image-caption"><span className="share-image-filename">{file.name}</span><span className="share-open-original">Open original <ExternalLink size={15} aria-hidden="true" /></span></div>
+                </a>;
+              })}</div> : <p className="generated-empty">No generated images yet.</p>}
+          </section>
         </div>
 
         <section className="share-description" aria-labelledby="share-description-title">
@@ -123,7 +147,7 @@ export default async function SharedProduct({ params }: Props) {
         </section>
 
         <footer className="share-footer">
-          Public product reference. Images are original uploaded references, not AI-generated output.
+          Public product reference. Original reference images and generated images are displayed in separate sections.
         </footer>
       </div>
     </main>
