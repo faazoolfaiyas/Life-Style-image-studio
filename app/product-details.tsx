@@ -2,8 +2,8 @@
 
 import { useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Trash2 } from 'lucide-react';
-import type { Kind, Photo, Product } from './cloud';
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, LoaderCircle, Trash2 } from 'lucide-react';
+import type { DeleteProgress, Kind, Photo, Product } from './cloud';
 
 type Filter = 'all' | Kind;
 type Props = {
@@ -15,7 +15,7 @@ type Props = {
   copied: boolean;
   onBack: () => void;
   onCopy: () => void;
-  onDelete: () => Promise<void>;
+  onDelete: (onProgress: (progress: DeleteProgress) => void) => Promise<void>;
   onFilter: (filter: Filter) => void;
   onSlide: (index: number) => void;
 };
@@ -41,6 +41,8 @@ export default function ProductDetails({
   onSlide,
 }: Props) {
   const [deleting, setDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState<DeleteProgress | null>(null);
+  const [deleteError, setDeleteError] = useState('');
   const [folderCopied, setFolderCopied] = useState(false);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -82,10 +84,14 @@ export default function ProductDetails({
 
   const confirmDelete = async () => {
     if (deleting) return;
+    setDeleteError('');
+    setDeleteProgress({phase:'loading',completed:0,total:0,label:'Finding product images'});
     setDeleting(true);
     try {
-      await onDelete();
+      await onDelete(setDeleteProgress);
       dialogRef.current?.close();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Could not delete product');
     } finally {
       setDeleting(false);
     }
@@ -116,7 +122,7 @@ export default function ProductDetails({
             className="details-delete"
             aria-label="Delete product"
             title="Delete product"
-            onClick={() => dialogRef.current?.showModal()}
+            onClick={() => { setDeleteError(''); setDeleteProgress(null); dialogRef.current?.showModal(); }}
           >
             <Trash2 size={19} aria-hidden="true" />
           </button>
@@ -214,10 +220,37 @@ export default function ProductDetails({
         onCancel={event => { if (deleting) event.preventDefault(); }}
       >
         <span className="details-dialog-icon" aria-hidden="true"><Trash2 size={23} /></span>
-        <h2 id="delete-dialog-title">Delete product?</h2>
+        <h2 id="delete-dialog-title">{deleting ? 'Deleting product' : 'Delete product?'}</h2>
+        {deleteProgress && (
+          <div className="delete-progress" role="status" aria-live="polite" aria-atomic="true">
+            <div className="delete-progress-heading">
+              {deleting && <LoaderCircle className="delete-progress-spinner" size={20} aria-hidden="true" />}
+              <span>{deleteProgress.label}</span>
+            </div>
+            {deleteProgress.total > 0 ? (
+              <>
+                <div
+                  className="delete-progress-track"
+                  role="progressbar"
+                  aria-label="Deletion progress"
+                  aria-valuemin={0}
+                  aria-valuemax={deleteProgress.total}
+                  aria-valuenow={deleteProgress.completed}
+                >
+                  <span style={{width:`${Math.round(deleteProgress.completed / deleteProgress.total * 100)}%`}} />
+                </div>
+                <p className="delete-progress-count">{deleteProgress.completed} of {deleteProgress.total} steps completed</p>
+              </>
+            ) : <div className="delete-progress-track delete-progress-indeterminate"><span /></div>}
+            {deleting && <p className="delete-progress-note">Please keep this page open until deletion finishes.</p>}
+          </div>
+        )}
+        {deleteError && <p className="delete-progress-error" role="alert">{deleteError}</p>}
         <div className="details-dialog-actions">
-          <button type="button" className="details-dialog-cancel" disabled={deleting} onClick={() => dialogRef.current?.close()}>Cancel</button>
-          <button type="button" className="details-dialog-confirm" disabled={deleting} onClick={confirmDelete}>Delete product</button>
+          <button type="button" className="details-dialog-cancel" disabled={deleting} onClick={() => dialogRef.current?.close()}>{deleteError ? 'Close' : 'Cancel'}</button>
+          <button type="button" className="details-dialog-confirm" disabled={deleting} onClick={confirmDelete}>
+            {deleting ? 'Deleting…' : deleteError ? 'Retry deletion' : 'Delete product'}
+          </button>
         </div>
       </dialog>
     </section>
