@@ -131,3 +131,14 @@ dialog.details-dialog::backdrop{background:rgba(8,5,14,.84)}
 .details-dialog::backdrop{background:rgba(8,5,14,.86)}
 .details-dialog:focus{outline:none}
 .details-arrow{top:auto;bottom:12px;transform:none;border-radius:14px}
+
+/* Keep both copy actions accessible on narrow Android screens. */
+.details-actions{flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:460px){
+  .details-toolbar{align-items:flex-start}
+  .details-back{min-height:44px}
+  .details-actions{flex:1;gap:6px}
+  .details-copy{min-height:44px;padding:7px 9px;font-size:12px;gap:5px}
+  .details-copy svg{width:15px;height:15px}
+  .details-delete{height:44px;min-width:44px;width:44px}
+}
