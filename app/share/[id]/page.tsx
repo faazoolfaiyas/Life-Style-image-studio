@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
+import PublicImageGallery from '../../public-image-gallery';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,48 +97,14 @@ export default async function SharedProduct({ params }: Props) {
             return (
               <section key={kind} className="share-section" aria-labelledby={`share-${kind}`}>
                 <h2 id={`share-${kind}`} className="share-section-title">{title}</h2>
-                <div className="share-image-grid">
-                  {items.map((image) => (
-                    <a
-                      key={image.id}
-                      className="share-image-card"
-                      href={sourceUrl(image.storage_path)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`${image.filename || 'Product photo'} · Open original`}
-                    >
-                      <div className="share-image-frame">
-                        <img
-                          src={sourceUrl(image.storage_path)}
-                          alt={image.filename || product.name}
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      </div>
-                      <div className="share-image-caption">
-                        <span className="share-image-filename" title={image.filename || 'Product photo'}>
-                          {image.filename || 'Product photo'}
-                        </span>
-                        <span className="share-open-original">
-                          Open original <ExternalLink size={15} aria-hidden="true" />
-                        </span>
-                      </div>
-                    </a>
-                  ))}
-                </div>
+                <PublicImageGallery images={items.map(image=>({url:sourceUrl(image.storage_path),name:image.filename||product.name}))}/>
               </section>
             );
           })}
           <section className="share-section" aria-labelledby="share-generated-title">
             <h2 id="share-generated-title" className="share-section-title">Generated images ({generated.length})</h2>
             {generatedUnavailable ? <p className="generated-error">Generated images are temporarily unavailable.</p> :
-              generated.length ? <div className="share-image-grid">{generated.map(file => {
-                const url = 'https://raw.githubusercontent.com/lifestylekky/Life-Style-image-studio-store-/main/'+file.path.split('/').map(encodeURIComponent).join('/');
-                return <a key={file.path} className="share-image-card" href={url} target="_blank" rel="noopener noreferrer">
-                  <div className="share-image-frame"><img src={url} alt={file.name} loading="lazy" decoding="async" /></div>
-                  <div className="share-image-caption"><span className="share-image-filename">{file.name}</span><span className="share-open-original">Open original <ExternalLink size={15} aria-hidden="true" /></span></div>
-                </a>;
-              })}</div> : <p className="generated-empty">No generated images yet.</p>}
+              generated.length ? <PublicImageGallery images={generated.map(file=>({url:'https://raw.githubusercontent.com/lifestylekky/Life-Style-image-studio-store-/main/'+file.path.split('/').map(encodeURIComponent).join('/'),name:file.name}))}/> : <p className="generated-empty">No generated images yet.</p>}
           </section>
         </div>
 
