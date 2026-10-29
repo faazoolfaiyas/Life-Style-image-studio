@@ -12,4 +12,37 @@ async function api(path:string,init:RequestInit){const {data:{session}}=await su
 export type UploadProgress={index:number;total:number;percent:number;name:string;phase:'uploading'|'saving'};
 async function uploadWithProgress(form:FormData,token:string,onProgress:(percent:number)=>void):Promise<{path:string}>{return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('POST','/api/images');xhr.setRequestHeader('Authorization','Bearer '+token);xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(Math.min(95,Math.round(e.loaded/e.total*95)))};xhr.onerror=()=>reject(Error('Network error while uploading image'));xhr.onload=()=>{let result:{path?:string;error?:string};try{result=JSON.parse(xhr.responseText) as {path?:string;error?:string}}catch{reject(Error('Invalid upload response'));return}if(xhr.status>=200&&xhr.status<300){if(!result.path){reject(Error('Missing uploaded image path'));return}onProgress(100);resolve({path:result.path})}else reject(Error(result.error||'Upload failed'))};xhr.send(form)})}
 export async function put(p:Product,onProgress?:(progress:UploadProgress)=>void){const user=await getUser();if(!user)throw Error('Please sign in first.');const uploaded:string[]=[];let inserted=false;const {data:{session}}=await supabase.auth.getSession();if(!session)throw Error('Please sign in first.');try{for(let i=0;i<p.photos.length;i++){const photo=p.photos[i];const blob=await(await fetch(photo.data)).blob();const form=new FormData();form.append('file',blob,photo.label);form.append('productId',p.id);form.append('kind',photo.kind);onProgress?.({index:i,total:p.photos.length,percent:0,name:photo.label,phase:'uploading'});const result=await uploadWithProgress(form,session.access_token,percent=>onProgress?.({index:i,total:p.photos.length,percent,name:photo.label,phase:'uploading'}));uploaded.push(result.path)}onProgress?.({index:p.photos.length,total:p.photos.length,percent:100,name:'Saving product',phase:'saving'});const {error}=await supabase.from('products').insert({id:p.id,owner_id:user.id,name:p.name,description:p.description});if(error)throw error;inserted=true;for(let i=0;i<p.photos.length;i++){const photo=p.photos[i];const {error:rowError}=await supabase.from('product_images').insert({product_id:p.id,owner_id:user.id,kind:photo.kind,storage_path:uploaded[i],filename:photo.label,sort_order:i});if(rowError)throw rowError}}catch(e){if(inserted)await supabase.from('products').delete().eq('id',p.id);throw e}}
-export async function remove(id:string){const {data,error}=await supabase.from('product_images').select('storage_path').eq('product_id',id);if(error)throw error;const paths=(data||[]).map(x=>x.storage_path);for(const path of paths.filter(x=>x.startsWith('github:'))){await api('/api/images?path='+encodeURIComponent(path),{method:'DELETE'})}const {error:delError}=await supabase.from('products').delete().eq('id',id);if(delError)throw delError;const legacy=paths.filter(x=>!x.startsWith('github:'));if(legacy.length)await supabase.storage.from('product-images').remove(legacy)}
+export type DeleteProgress = {
+  phase: 'loading' | 'images' | 'record' | 'storage' | 'complete';
+  completed: number;
+  total: number;
+  label: string;
+};
+export async function remove(id:string,onProgress?:(progress:DeleteProgress)=>void){
+  onProgress?.({phase:'loading',completed:0,total:0,label:'Finding product images'});
+  const {data,error}=await supabase.from('product_images').select('storage_path').eq('product_id',id);
+  if(error)throw error;
+  const paths=(data||[]).map(x=>x.storage_path);
+  const github=paths.filter(x=>x.startsWith('github:'));
+  const legacy=paths.filter(x=>!x.startsWith('github:'));
+  const total=github.length+1+(legacy.length?1:0);
+  let completed=0;
+  for(const path of github){
+    onProgress?.({phase:'images',completed,total,label:'Removing image '+(completed+1)+' of '+github.length});
+    await api('/api/images?path='+encodeURIComponent(path),{method:'DELETE'});
+    completed++;
+    onProgress?.({phase:'images',completed,total,label:'Removed '+completed+' of '+github.length+' repository images'});
+  }
+  onProgress?.({phase:'record',completed,total,label:'Deleting product record'});
+  const {error:delError}=await supabase.from('products').delete().eq('id',id);
+  if(delError)throw delError;
+  completed++;
+  onProgress?.({phase:'record',completed,total,label:'Product record deleted'});
+  if(legacy.length){
+    onProgress?.({phase:'storage',completed,total,label:'Removing stored images'});
+    const {error:storageError}=await supabase.storage.from('product-images').remove(legacy);
+    if(storageError)throw storageError;
+    completed++;
+  }
+  onProgress?.({phase:'complete',completed:total,total,label:'Product deleted'});
+}
