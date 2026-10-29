@@ -32,6 +32,18 @@ export function SharePopup({url,title,onClose}:{url:string;title:string;onClose:
   </section>
  </div>
 }
+function imageFilename(name:string,type:string){
+ const extension=type==='image/png'?'png':type==='image/webp'?'webp':type==='image/gif'?'gif':type==='image/avif'?'avif':'jpg';
+ const base=(name||'image').replace(/[^a-zA-Z0-9._-]/g,'_').replace(/\\.[^.]+$/,'');
+ return (base||'image')+'.'+extension;
+}
+async function imageAsFile(url:string,name:string):Promise<File>{
+ const response=await fetch(url,{cache:'no-store'});
+ if(!response.ok)throw Error('Could not retrieve the image for sharing.');
+ const blob=await response.blob();
+ if(!blob.type.startsWith('image/'))throw Error('The image could not be loaded as a shareable file.');
+ return new File([blob],imageFilename(name,blob.type),{type:blob.type});
+}
 export default function ImageViewer({images,index,onClose}:{images:ViewImage[];index:number;onClose:()=>void}){
  const [active,setActive]=useState(index);
  const [shareOpen,setShareOpen]=useState(false);
@@ -39,10 +51,10 @@ export default function ImageViewer({images,index,onClose}:{images:ViewImage[];i
  const current=images[active];
  useEffect(()=>{closeRef.current?.focus()},[]);
  useEffect(()=>{
-  const key=(event:KeyboardEvent)=>{if(shareOpen)return;if(event.key==='Escape')onClose();if(event.key==='ArrowLeft')setActive(v=>(v+images.length-1)%images.length);if(event.key==='ArrowRight')setActive(v=>(v+1)%images.length)};
+  const key=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose();if(event.key==='ArrowLeft')setActive(v=>(v+images.length-1)%images.length);if(event.key==='ArrowRight')setActive(v=>(v+1)%images.length)};
   window.addEventListener('keydown',key);const old=document.body.style.overflow;document.body.style.overflow='hidden';
   return()=>{window.removeEventListener('keydown',key);document.body.style.overflow=old};
- },[images.length,onClose,shareOpen]);
+ },[images.length,onClose]);
  if(!current)return null;
  return <div className="image-modal-overlay" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}>
   <section role="dialog" aria-modal="true" aria-label="Full image viewer" className="image-fullscreen">
@@ -54,9 +66,9 @@ export default function ImageViewer({images,index,onClose}:{images:ViewImage[];i
    </div>
    <div className="image-fullscreen-actions">
     <button type="button" onClick={()=>downloadImage(current.url,current.name)}><Download size={19}/> Download</button>
-    <button type="button" onClick={()=>setShareOpen(true)}><Share2 size={19}/> Share</button>
+    <button type="button" disabled={sharing} onClick={shareImage}><Share2 size={19}/> {sharing?'Preparing image…':'Share image'}</button>
    </div>
+   {shareError&&<p role="alert" className="image-share-error">{shareError}</p>}
   </section>
-  {shareOpen&&<SharePopup title="image" url={current.url} onClose={()=>setShareOpen(false)}/>}
  </div>
 }
