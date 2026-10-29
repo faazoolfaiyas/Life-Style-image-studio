@@ -6,6 +6,33 @@ import ProductDetails from './product-details';
 import {supabase,getUser,load,put,remove,type Kind,type Photo,type Product,type UploadProgress,type DeleteProgress} from './cloud';
 const id=()=>crypto.randomUUID();
 type StudioRoute={tab:'store'|'upload';selected:string|null};
+function draftDb():Promise<IDBDatabase>{
+ return new Promise((resolve,reject)=>{
+  const request=indexedDB.open('lifestyle-studio-drafts',1);
+  request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('drafts'))request.result.createObjectStore('drafts')};
+  request.onsuccess=()=>resolve(request.result);
+  request.onerror=()=>reject(request.error);
+ });
+}
+async function readDraftPhotos():Promise<Photo[]>{
+ const db=await draftDb();
+ return new Promise(resolve=>{
+  const transaction=db.transaction('drafts','readonly');
+  const request=transaction.objectStore('drafts').get('photos');
+  request.onsuccess=()=>resolve(Array.isArray(request.result)?request.result:[]);
+  request.onerror=()=>resolve([]);
+  transaction.oncomplete=()=>db.close();
+ });
+}
+async function writeDraftPhotos(photos:Photo[]):Promise<void>{
+ const db=await draftDb();
+ return new Promise((resolve,reject)=>{
+  const transaction=db.transaction('drafts','readwrite');
+  transaction.objectStore('drafts').put(photos,'photos');
+  transaction.oncomplete=()=>{db.close();resolve()};
+  transaction.onerror=()=>{db.close();reject(transaction.error)};
+ });
+}
 function routeFromUrl():StudioRoute{
  const url=new URL(window.location.href);
  const product=url.searchParams.get('product');
@@ -27,6 +54,7 @@ const [user,setUser]=useState<string|null>(null),[ready,setReady]=useState(false
 const [progress,setProgress]=useState<UploadProgress|null>(null);
 const [uploadStep,setUploadStep]=useState<0|1|2>(0);
 
+const [draftRestored,setDraftRestored]=useState(false);
 const [products,setProducts]=useState<Product[]>([]),[tab,setTab]=useState<'store'|'upload'>('store'),[selected,setSelected]=useState<string|null>(null),[search,setSearch]=useState(''),[filter,setFilter]=useState<'all'|'main'|'color'|'other'>('all'),[slide,setSlide]=useState(0),[name,setName]=useState(''),[description,setDescription]=useState(''),[photos,setPhotos]=useState<Photo[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[loaded,setLoaded]=useState(false),[copied,setCopied]=useState(false);
 useEffect(()=>{
  const restore=()=>{const route=routeFromUrl();setTab(route.tab);setSelected(route.selected);setSlide(0);setFilter('all')};
@@ -37,6 +65,12 @@ useEffect(()=>{
 useEffect(()=>{
  try{const saved=sessionStorage.getItem('lifestyle-studio-draft');if(saved){const draft=JSON.parse(saved);setName(draft.name||'');setDescription(draft.description||'');setUploadStep(draft.step===1||draft.step===2?draft.step:0)}}catch{}
 },[]);
+useEffect(()=>{
+ let active=true;
+ readDraftPhotos().then(saved=>{if(active)setPhotos(saved)}).catch(()=>{}).finally(()=>{if(active)setDraftRestored(true)});
+ return()=>{active=false};
+},[]);
+useEffect(()=>{if(!draftRestored)return;writeDraftPhotos(photos).catch(()=>{})},[photos,draftRestored]);
 useEffect(()=>{try{sessionStorage.setItem('lifestyle-studio-draft',JSON.stringify({name,description,step:uploadStep}))}catch{}},[name,description,uploadStep]);
 useEffect(()=>{if(!busy)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='Images are still uploading.'};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[busy]);
 useEffect(()=>{
