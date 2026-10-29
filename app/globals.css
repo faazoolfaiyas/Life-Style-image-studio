@@ -190,3 +190,6 @@ dialog.details-dialog::backdrop{background:rgba(8,5,14,.84)}
 .share-popup input{width:100%;min-height:48px;padding:12px;border:1px solid rgba(221,198,255,.26);border-radius:12px;background:#120c1d;color:#f7f2ff;font-size:14px}
 .share-popup-actions{padding-top:15px}
 @media(max-width:460px){.image-modal-overlay{padding:5px}.image-fullscreen{height:98dvh;padding:8px;border-radius:14px}.share-popup{margin:10px}}
+
+.image-share-error{margin:12px 4px 4px;padding:12px;border:1px solid rgba(251,113,133,.35);border-radius:12px;background:rgba(127,35,61,.16);color:#fecdd3;font-size:13px;line-height:1.5}
+.image-fullscreen-actions button:disabled{opacity:.6;cursor:wait}
