@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Trash2 } from 'lucide-react';
 import type { Kind, Photo, Product } from './cloud';
@@ -40,10 +40,9 @@ export default function ProductDetails({
   onFilter,
   onSlide,
 }: Props) {
-  const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const deleteButton = useRef<HTMLButtonElement>(null);
-  const cancelButton = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const count = images.length;
 
@@ -67,32 +66,14 @@ export default function ProductDetails({
     }
   };
 
-  useEffect(() => {
-    if (!confirming) return;
-    cancelButton.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !deleting) {
-        event.preventDefault();
-        setConfirming(false);
-        deleteButton.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [confirming, deleting]);
-
-  const cancelDelete = () => {
-    setConfirming(false);
-    deleteButton.current?.focus();
-  };
   const confirmDelete = async () => {
     if (deleting) return;
     setDeleting(true);
     try {
       await onDelete();
+      dialogRef.current?.close();
     } finally {
       setDeleting(false);
-      setConfirming(false);
     }
   };
 
@@ -115,7 +96,7 @@ export default function ProductDetails({
             className="details-delete"
             aria-label="Delete product"
             title="Delete product"
-            onClick={() => setConfirming(true)}
+            onClick={() => dialogRef.current?.showModal()}
           >
             <Trash2 size={19} aria-hidden="true" />
           </button>
@@ -205,18 +186,20 @@ export default function ProductDetails({
         )}
       </div>
 
-      {confirming && (
-        <div className="details-dialog-backdrop">
-          <div role="alertdialog" aria-modal="true" aria-labelledby="delete-dialog-title" className="details-dialog">
-            <span className="details-dialog-icon" aria-hidden="true"><Trash2 size={23} /></span>
-            <h2 id="delete-dialog-title">Delete product?</h2>
-            <div className="details-dialog-actions">
-              <button ref={cancelButton} type="button" className="details-dialog-cancel" disabled={deleting} onClick={cancelDelete}>Cancel</button>
-              <button type="button" className="details-dialog-confirm" disabled={deleting} onClick={confirmDelete}>Delete product</button>
-            </div>
-          </div>
+      <dialog
+        ref={dialogRef}
+        className="details-dialog"
+        aria-labelledby="delete-dialog-title"
+        onClose={() => deleteButton.current?.focus()}
+        onCancel={event => { if (deleting) event.preventDefault(); }}
+      >
+        <span className="details-dialog-icon" aria-hidden="true"><Trash2 size={23} /></span>
+        <h2 id="delete-dialog-title">Delete product?</h2>
+        <div className="details-dialog-actions">
+          <button type="button" className="details-dialog-cancel" disabled={deleting} onClick={() => dialogRef.current?.close()}>Cancel</button>
+          <button type="button" className="details-dialog-confirm" disabled={deleting} onClick={confirmDelete}>Delete product</button>
         </div>
-      )}
+      </dialog>
     </section>
   );
 }
