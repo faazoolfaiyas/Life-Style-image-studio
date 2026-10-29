@@ -1,0 +1,222 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import type { TouchEvent } from 'react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Trash2 } from 'lucide-react';
+import type { Kind, Photo, Product } from './cloud';
+
+type Filter = 'all' | Kind;
+type Props = {
+  product: Product;
+  images: Photo[];
+  current?: Photo;
+  activeFilter: Filter;
+  activeSlide: number;
+  copied: boolean;
+  onBack: () => void;
+  onCopy: () => void;
+  onDelete: () => Promise<void>;
+  onFilter: (filter: Filter) => void;
+  onSlide: (index: number) => void;
+};
+
+const filters: { id: Filter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'main', label: 'Main' },
+  { id: 'color', label: 'Colors' },
+  { id: 'other', label: 'More' },
+];
+
+export default function ProductDetails({
+  product,
+  images,
+  current,
+  activeFilter,
+  activeSlide,
+  copied,
+  onBack,
+  onCopy,
+  onDelete,
+  onFilter,
+  onSlide,
+}: Props) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const count = images.length;
+
+  const move = (direction: number) => {
+    if (count > 1) onSlide((activeSlide + direction + count) % count);
+  };
+
+  const startSwipe = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (touch) touchStart.current = { x: touch.clientX, y: touch.clientY };
+  };
+  const endSwipe = (event: TouchEvent<HTMLDivElement>) => {
+    const first = touchStart.current;
+    touchStart.current = null;
+    const touch = event.changedTouches[0];
+    if (!first || !touch || count < 2) return;
+    const dx = touch.clientX - first.x;
+    const dy = touch.clientY - first.y;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+      move(dx < 0 ? 1 : -1);
+    }
+  };
+
+  useEffect(() => {
+    if (!confirming) return;
+    cancelButton.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !deleting) {
+        event.preventDefault();
+        setConfirming(false);
+        deleteButton.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [confirming, deleting]);
+
+  const cancelDelete = () => {
+    setConfirming(false);
+    deleteButton.current?.focus();
+  };
+  const confirmDelete = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await onDelete();
+    } finally {
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
+
+  return (
+    <section className="details-screen" aria-labelledby="details-title">
+      <div className="details-toolbar">
+        <button type="button" className="details-back" onClick={onBack}>
+          <ArrowLeft size={19} aria-hidden="true" />
+          Products
+        </button>
+        <div className="details-actions">
+          <button type="button" onClick={onCopy} className="details-copy">
+            <Copy size={18} aria-hidden="true" />
+            {copied ? 'Copied' : 'Copy link'}
+          </button>
+          <span className="details-action-separator" aria-hidden="true" />
+          <button
+            ref={deleteButton}
+            type="button"
+            className="details-delete"
+            aria-label="Delete product"
+            title="Delete product"
+            onClick={() => setConfirming(true)}
+          >
+            <Trash2 size={19} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      <div className="details-layout">
+        <div className="details-summary">
+          <p className="eyebrow">PRODUCT DETAILS</p>
+          <h1 id="details-title" className="details-title">{product.name}</h1>
+          <div className="details-filters" role="group" aria-label="Product image filters">
+            {filters.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={activeFilter === id}
+                className={`details-filter ${activeFilter === id ? 'is-active' : ''}`}
+                onClick={() => onFilter(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="details-gallery">
+          <div
+            className="details-viewer"
+            tabIndex={count > 1 ? 0 : undefined}
+            aria-label="Product image viewer"
+            onTouchStart={startSwipe}
+            onTouchEnd={endSwipe}
+            onTouchCancel={() => { touchStart.current = null; }}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                event.preventDefault();
+                move(event.key === 'ArrowRight' ? 1 : -1);
+              }
+            }}
+          >
+            {current ? (
+              <img
+                key={current.id}
+                className="details-current-image"
+                src={current.data}
+                alt={current.label || product.name}
+                loading="eager"
+                decoding="async"
+              />
+            ) : (
+              <span className="details-no-images">No images</span>
+            )}
+            {count > 1 && (
+              <>
+                <button type="button" aria-label="Previous" className="details-arrow details-arrow-prev" onClick={() => move(-1)}>
+                  <ChevronLeft size={24} aria-hidden="true" />
+                </button>
+                <button type="button" aria-label="Next" className="details-arrow details-arrow-next" onClick={() => move(1)}>
+                  <ChevronRight size={24} aria-hidden="true" />
+                </button>
+              </>
+            )}
+          </div>
+          {count > 0 && (
+            <div className="details-thumbnails" aria-label="Product image thumbnails">
+              {images.map((photo, index) => (
+                <button
+                  key={photo.id}
+                  type="button"
+                  aria-label={photo.label || `Image ${index + 1}`}
+                  aria-pressed={index === activeSlide}
+                  className={`details-thumb ${index === activeSlide ? 'is-active' : ''}`}
+                  onClick={() => onSlide(index)}
+                >
+                  <img src={photo.data} alt="" loading="lazy" decoding="async" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {product.description && (
+          <section className="details-description" aria-labelledby="details-description-title">
+            <h2 id="details-description-title">Description</h2>
+            <p>{product.description}</p>
+          </section>
+        )}
+      </div>
+
+      {confirming && (
+        <div className="details-dialog-backdrop">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="delete-dialog-title" className="details-dialog">
+            <span className="details-dialog-icon" aria-hidden="true"><Trash2 size={23} /></span>
+            <h2 id="delete-dialog-title">Delete product?</h2>
+            <div className="details-dialog-actions">
+              <button ref={cancelButton} type="button" className="details-dialog-cancel" disabled={deleting} onClick={cancelDelete}>Cancel</button>
+              <button type="button" className="details-dialog-confirm" disabled={deleting} onClick={confirmDelete}>Delete product</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
