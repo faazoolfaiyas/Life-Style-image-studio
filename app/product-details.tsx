@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react';
+import ImageViewer, {SharePopup, type ViewImage} from './image-viewer';
 import { generatedImages, type GeneratedImage, type DeleteProgress, type Kind, type Photo, type Product } from './cloud';
 
 type Filter = 'all' | 'main' | 'color' | 'other';
@@ -43,7 +44,8 @@ export default function ProductDetails({
   const [deleting, setDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState<DeleteProgress | null>(null);
   const [deleteError, setDeleteError] = useState('');
-  const [folderCopied, setFolderCopied] = useState(false);
+  const [shareTarget,setShareTarget] = useState<{url:string;title:string}|null>(null);
+  const [viewerIndex,setViewerIndex] = useState<number|null>(null);
   const [generated, setGenerated] = useState<GeneratedImage[]>([]);
   const [generatedLoading, setGeneratedLoading] = useState(true);
   const [generatedError, setGeneratedError] = useState('');
@@ -60,16 +62,8 @@ export default function ProductDetails({
   const githubImage = product.photos.find(photo => photo.path?.startsWith('github:products/'));
   const githubFolder = githubImage?.path?.slice('github:'.length).split('/').slice(0, 2).join('/');
   const folderUrl = githubFolder ? `https://github.com/lifestylekky/Life-Style-image-studio-store-/tree/main/${githubFolder.split('/').map(encodeURIComponent).join('/')}` : null;
-  const copyFolder = async () => {
-    if (!folderUrl) return;
-    try {
-      await navigator.clipboard.writeText(folderUrl);
-      setFolderCopied(true);
-      window.setTimeout(() => setFolderCopied(false), 1800);
-    } catch {
-      window.prompt('Copy product folder URL', folderUrl);
-    }
-  };
+  const allImages:ViewImage[]=[...product.photos.map(photo=>({url:photo.data,name:photo.label||product.name})),...generated.map(image=>({url:image.url,name:image.name}))];
+  const openImage=(url:string)=>{const index=allImages.findIndex(image=>image.url===url);if(index>=0)setViewerIndex(index)};
 
   const move = (direction: number) => {
     if (count > 1) onSlide((activeSlide + direction + count) % count);
@@ -114,12 +108,12 @@ export default function ProductDetails({
           Products
         </button>
         <div className="details-actions">
-          <button type="button" onClick={onCopy} className="details-copy">
+          <button type="button" onClick={() => setShareTarget({url:window.location.origin+'/share/'+product.id,title:'product'})} className="details-copy">
             <Copy size={18} aria-hidden="true" />
             {copied ? 'Copied' : 'Copy link'}
           </button>
           {folderUrl && (
-            <button type="button" onClick={copyFolder} className="details-copy" aria-label="Copy product GitHub folder URL">
+            <button type="button" onClick={() => setShareTarget({url:folderUrl!,title:'product folder'})} className="details-copy" aria-label="Copy product GitHub folder URL">
               <Copy size={18} aria-hidden="true" />
               {folderCopied ? 'Copied' : 'Copy folder'}
             </button>
@@ -174,6 +168,11 @@ export default function ProductDetails({
           >
             {current ? (
               <img
+                onClick={() => openImage(current.data)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openImage(current.data)}}}
+                title="View full image"
                 key={current.id}
                 className="details-current-image"
                 src={current.data}
@@ -204,7 +203,7 @@ export default function ProductDetails({
                   aria-label={photo.label || `Image ${index + 1}`}
                   aria-pressed={index === activeSlide}
                   className={`details-thumb ${index === activeSlide ? 'is-active' : ''}`}
-                  onClick={() => onSlide(index)}
+                  onClick={() => {onSlide(index);openImage(photo.data)}}
                 >
                   <img src={photo.data} alt="" loading="lazy" decoding="async" />
                 </button>
@@ -226,10 +225,10 @@ export default function ProductDetails({
           {generatedLoading ? <p className="generated-empty" role="status">Checking generated folder…</p> :
             generatedError ? <p className="generated-error" role="alert">{generatedError}</p> :
             generated.length ? <div className="generated-grid">{generated.map(image => (
-              <a key={image.path} href={image.url} target="_blank" rel="noopener noreferrer" className="generated-image-card" title={image.name}>
+              <button type="button" key={image.path} onClick={()=>openImage(image.url)} className="generated-image-card" title={'View '+image.name}>
                 <img src={image.url} alt={image.name} loading="lazy" />
                 <span>{image.name} <ExternalLink size={13} aria-hidden="true" /></span>
-              </a>
+              </button>
             ))}</div> : <p className="generated-empty">No generated images yet. Images added to this product’s generated folder will appear here when refreshed.</p>}
         </section>
 
@@ -241,6 +240,8 @@ export default function ProductDetails({
         )}
       </div>
 
+      {viewerIndex!==null&&<ImageViewer images={allImages} index={viewerIndex} onClose={()=>setViewerIndex(null)}/>}
+      {shareTarget&&<SharePopup url={shareTarget.url} title={shareTarget.title} onClose={()=>setShareTarget(null)}/>}
       <dialog
         ref={dialogRef}
         className="details-dialog"
