@@ -41,10 +41,24 @@ export default function ProductDetails({
   onSlide,
 }: Props) {
   const [deleting, setDeleting] = useState(false);
+  const [folderCopied, setFolderCopied] = useState(false);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const count = images.length;
+  const githubImage = product.photos.find(photo => photo.path?.startsWith('github:products/'));
+  const githubFolder = githubImage?.path?.slice('github:'.length).split('/').slice(0, 2).join('/');
+  const folderUrl = githubFolder ? `https://github.com/lifestylekky/Life-Style-image-studio-store-/tree/main/${githubFolder.split('/').map(encodeURIComponent).join('/')}` : null;
+  const copyFolder = async () => {
+    if (!folderUrl) return;
+    try {
+      await navigator.clipboard.writeText(folderUrl);
+      setFolderCopied(true);
+      window.setTimeout(() => setFolderCopied(false), 1800);
+    } catch {
+      window.prompt('Copy product folder URL', folderUrl);
+    }
+  };
 
   const move = (direction: number) => {
     if (count > 1) onSlide((activeSlide + direction + count) % count);
@@ -89,6 +103,12 @@ export default function ProductDetails({
             <Copy size={18} aria-hidden="true" />
             {copied ? 'Copied' : 'Copy link'}
           </button>
+          {folderUrl && (
+            <button type="button" onClick={copyFolder} className="details-copy" aria-label="Copy product GitHub folder URL">
+              <Copy size={18} aria-hidden="true" />
+              {folderCopied ? 'Copied' : 'Copy folder'}
+            </button>
+          )}
           <span className="details-action-separator" aria-hidden="true" />
           <button
             ref={deleteButton}
