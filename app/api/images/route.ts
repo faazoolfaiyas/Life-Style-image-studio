@@ -25,7 +25,7 @@ export async function POST(req:NextRequest){
   const path='products/'+productId+'/'+(kind==='color'?'colors':kind)+'/'+crypto.randomUUID()+'.'+ext;
   const content=Buffer.from(await file.arrayBuffer()).toString('base64');
   const res=await fetch(gh(path),{method:'PUT',headers:headers(token),body:JSON.stringify({message:'Upload product image '+productId,content,branch}),cache:'no-store'});
-  if(!res.ok)return NextResponse.json({error:'GitHub upload failed ('+res.status+')'},{status:502});
+  if(!res.ok){const detail=await res.json().catch(()=>({})) as {message?:string};const reason=typeof detail.message==='string'?detail.message.slice(0,180):'GitHub rejected the upload';console.error('GitHub image upload failed',res.status,reason);return NextResponse.json({error:'GitHub upload failed ('+res.status+'): '+reason},{status:502});}
   return NextResponse.json({path:'github:'+path,url:'https://raw.githubusercontent.com/'+repo+'/'+branch+'/'+path});
  }catch{return NextResponse.json({error:'Unable to upload image'},{status:500})}
 }
