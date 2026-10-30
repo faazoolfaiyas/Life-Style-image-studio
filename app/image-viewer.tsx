@@ -65,7 +65,7 @@ function zipFiles(files:File[]):Promise<Blob>{
   const directorySize=central.reduce((sum,part)=>sum+part.length,0);
   const end=new Uint8Array(22);const e=new DataView(end.buffer);
   long(e,0,0x06054b50);short(e,8,entries.length);short(e,10,entries.length);long(e,12,directorySize);long(e,16,offset);
-  return new Blob([...chunks,...central,end],{type:'application/zip'});
+  return new Blob([...chunks,...central,end].map(part=>Uint8Array.from(part).buffer),{type:'application/zip'});
  });
 }
 function saveBlob(blob:Blob,name:string){
