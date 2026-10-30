@@ -203,3 +203,19 @@ dialog.details-dialog::backdrop{background:rgba(8,5,14,.84)}
 .image-selection-strip img{width:100%;height:100%;object-fit:cover}
 .image-selection-strip svg{position:absolute;right:4px;top:4px;filter:drop-shadow(0 1px 3px #000);color:#fff}
 .image-selection-strip button.is-selected svg{color:#f4d789}
+
+.ai-description-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:9px 14px;border:1px solid rgba(226,194,255,.32);border-radius:13px;background:linear-gradient(115deg,rgba(112,58,190,.46),rgba(66,35,116,.5));color:#f5e9ff;font-size:12px;font-weight:700;box-shadow:inset 0 1px rgba(255,255,255,.1),0 8px 24px rgba(65,24,119,.2);transition:transform .2s,background .2s}
+.ai-description-button:not(:disabled):active{transform:scale(.97)}
+.ai-description-button:disabled{opacity:.75;cursor:wait}
+.ai-description-spin{animation:ai-description-rotate 1.2s linear infinite}
+.ai-description-progress{margin-top:12px;padding:15px;border:1px solid rgba(188,140,255,.22);border-radius:18px;background:linear-gradient(125deg,rgba(100,58,174,.2),rgba(36,20,60,.6));overflow:hidden}
+.ai-description-progress>div:first-child{display:flex;align-items:center;gap:12px}
+.ai-description-progress strong{display:block;color:#f2e6ff;font-size:13px}
+.ai-description-progress p{margin-top:3px;color:#bfa9d7;font-size:11px;line-height:1.5}
+.ai-description-orb{display:flex;flex:0 0 38px;width:38px;height:38px;align-items:center;justify-content:center;border-radius:14px;color:#f0d08a;background:rgba(163,105,235,.23);animation:ai-description-pulse 1.5s ease-in-out infinite}
+.ai-description-progress-track{height:4px;overflow:hidden;border-radius:9px;background:rgba(255,255,255,.09);margin-top:14px}
+.ai-description-progress-track span{display:block;width:35%;height:100%;border-radius:9px;background:linear-gradient(90deg,#9163e9,#d7a7ff,#e6cb8b);animation:ai-description-scan 1.7s ease-in-out infinite}
+@keyframes ai-description-rotate{to{transform:rotate(360deg)}}
+@keyframes ai-description-pulse{50%{transform:scale(1.08);box-shadow:0 0 20px rgba(159,94,232,.35)}}
+@keyframes ai-description-scan{0%{transform:translateX(-110%)}100%{transform:translateX(310%)}}
+@media(prefers-reduced-motion:reduce){.ai-description-spin,.ai-description-orb,.ai-description-progress-track span{animation:none}}
