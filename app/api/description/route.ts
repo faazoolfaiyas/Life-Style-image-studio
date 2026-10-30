@@ -59,11 +59,12 @@ Example 3 (skinny/shapewear):
 _Specialist in UnderGarments_
 
 Keep the footer identical in every output. For underwear, bra, skinny, shapewear use Specialist in UnderGarments; otherwise use Specialist in Ladies Wear. Prices are in LKR. CRITICAL: Every digit of every price MUST use keycap number emoji, never ordinary digits. Example: 950 -> 9️⃣5️⃣0️⃣, 300 -> 3️⃣0️⃣0️⃣, 1150 -> 1️⃣1️⃣5️⃣0️⃣, 1950 -> 1️⃣9️⃣5️⃣0️⃣. Only convert price digits; sizes, measurements, phone numbers and addresses remain ordinary digits. Do not add unsupported sales claims.`;
-const priceEmojiDigits=(value:string)=>value.replace(/[0-9]/g,d=>d+'\uFE0F\u20E3');
+// Normalize DeepSeek's plain digits, existing keycaps and malformed doubled keycaps.
+const priceEmojiDigits=(value:string)=>value.replace(/[0-9](?:[\uFE0F\u20E3])*/g,match=>match[0]+'\uFE0F\u20E3');
 function formatPriceEmojis(description:string):string{
  return description.split('\n').map(line=>{
-  if(!/(?:price|prices|LKR|Rs\.?)/i.test(line))return line;
-  return line.replace(/\d[\d,]*(?:\.\d{1,2})?/g,number=>priceEmojiDigits(number));
+  if(!/(?:\bprices?\b|\bLKR\b|\bRs\.?\b)/i.test(line))return line;
+  return priceEmojiDigits(line);
  }).join('\n');
 }
 export async function POST(req:NextRequest){
