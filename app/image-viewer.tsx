@@ -52,7 +52,7 @@ function zipFiles(files:File[]):Promise<Blob>{
  const short=(view:DataView,offset:number,value:number)=>view.setUint16(offset,value,true);
  const long=(view:DataView,offset:number,value:number)=>view.setUint32(offset,value>>>0,true);
  return Promise.all(files.map(async file=>({name:encoder.encode(file.name),bytes:new Uint8Array(await file.arrayBuffer())}))).then(entries=>{
-  const chunks:BlobPart[]=[];const central:Uint8Array[]=[];let offset=0;
+  const chunks:Uint8Array[]=[];const central:Uint8Array[]=[];let offset=0;
   for(const entry of entries){
    const size=entry.bytes.byteLength;const checksum=crc(entry.bytes);
    const local=new Uint8Array(30+entry.name.length);const l=new DataView(local.buffer);
