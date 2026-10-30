@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, LoaderCircle, RefreshCw, Trash2, Pencil, Share2, Check, X, Save } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, LoaderCircle, RefreshCw, Trash2, Pencil, Share2, Check, X, Save, WandSparkles } from 'lucide-react';
+import { supabase } from './cloud';
 import ImageViewer, {SharePopup, type ViewImage} from './image-viewer';
 import { generatedImages, type GeneratedImage, type DeleteProgress, type Kind, type Photo, type Product } from './cloud';
 
@@ -46,10 +47,25 @@ export default function ProductDetails({
   const [editingDescription,setEditingDescription]=useState(false);
   const [descriptionDraft,setDescriptionDraft]=useState(product.description);
   const [descriptionSaving,setDescriptionSaving]=useState(false);
+  const [descriptionGenerating,setDescriptionGenerating]=useState(false);
   const [descriptionError,setDescriptionError]=useState('');
   const [descriptionCopied,setDescriptionCopied]=useState(false);
   const [descriptionNotice,setDescriptionNotice]=useState('');
   useEffect(()=>{setDescriptionDraft(product.description);setEditingDescription(false);setDescriptionError('');setDescriptionNotice('')},[product.id,product.description]);
+  const generateDescription=async()=>{
+    if(descriptionGenerating||descriptionSaving)return;
+    setDescriptionGenerating(true);setDescriptionError('');setDescriptionNotice('');
+    try{
+      const {data:{session}}=await supabase.auth.getSession();
+      if(!session)throw Error('Please sign in again.');
+      const response=await fetch('/api/description',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({name:product.name,notes:descriptionDraft})});
+      const result=await response.json() as {description?:string;error?:string};
+      if(!response.ok||!result.description)throw Error(result.error||'Could not generate description.');
+      setDescriptionDraft(result.description);
+      setDescriptionNotice('AI description generated. Review it and tap Save changes to update this product.');
+    }catch(e){setDescriptionError(e instanceof Error?e.message:'Description generation failed.')}
+    finally{setDescriptionGenerating(false)}
+  };
   const saveDescription=async()=>{setDescriptionSaving(true);setDescriptionError('');try{await onSaveDescription(descriptionDraft);setEditingDescription(false);setDescriptionNotice('Description saved successfully.')}catch(e){setDescriptionError(e instanceof Error?e.message:'Could not save description.')}finally{setDescriptionSaving(false)}};
   const copyDescription=async()=>{try{await navigator.clipboard.writeText(product.description);setDescriptionCopied(true);setDescriptionNotice('Description copied to clipboard.');window.setTimeout(()=>setDescriptionCopied(false),2000)}catch{setDescriptionError('Copy unavailable. Select and copy the description manually.')}};
   const shareDescription=async()=>{setDescriptionError('');if(!navigator.share){try{await navigator.clipboard.writeText(product.description);setDescriptionNotice('Sharing is unavailable on this device. Description copied instead.')}catch{setDescriptionError('Sharing is not supported in this browser.')}}else{try{await navigator.share({text:product.description})}catch(e){if(e instanceof Error&&e.name!=='AbortError')setDescriptionError('Could not share description. Please try copying it instead.')}}};
@@ -246,7 +262,7 @@ export default function ProductDetails({
 
         <section className="details-description" aria-labelledby="details-description-title">
           <div className="details-description-heading"><h2 id="details-description-title">Description</h2><div className="details-description-actions">{!editingDescription&&<><button type="button" onClick={()=>{setDescriptionDraft(product.description);setDescriptionError('');setDescriptionNotice('');setEditingDescription(true)}} className="details-description-action"><Pencil size={16}/> Edit</button><button type="button" disabled={!product.description} onClick={copyDescription} className="details-description-action">{descriptionCopied?<Check size={16}/>:<Copy size={16}/>} {descriptionCopied?'Copied':'Copy'}</button><button type="button" disabled={!product.description} onClick={shareDescription} className="details-description-action"><Share2 size={16}/> Share</button></>}</div></div>
-          {editingDescription?<div className="details-description-editor"><label htmlFor="edit-product-description" className="sr-only">Edit product description</label><textarea id="edit-product-description" className="field details-description-textarea" value={descriptionDraft} onChange={e=>setDescriptionDraft(e.target.value)} disabled={descriptionSaving} placeholder="Add your product description…" rows={9}/><div className="details-description-editor-actions"><button type="button" className="details-description-action" disabled={descriptionSaving} onClick={()=>{setEditingDescription(false);setDescriptionDraft(product.description);setDescriptionError('')}}><X size={16}/> Cancel</button><button type="button" className="primary-btn" disabled={descriptionSaving||descriptionDraft===product.description} onClick={saveDescription}>{descriptionSaving?<LoaderCircle size={16} className="ai-description-spin"/>:<Save size={16}/>} {descriptionSaving?'Saving…':'Save changes'}</button></div></div>:product.description?<p className="details-description-text">{product.description}</p>:<p className="details-description-empty">No description yet. Tap Edit to add one.</p>}
+          {editingDescription?<div className="details-description-editor"><label htmlFor="edit-product-description" className="sr-only">Edit product description</label><textarea id="edit-product-description" className="field details-description-textarea" value={descriptionDraft} onChange={e=>setDescriptionDraft(e.target.value)} disabled={descriptionSaving||descriptionGenerating} placeholder="Add product details or notes for AI generation…" rows={9}/><button type="button" className="ai-description-button details-description-generate" disabled={descriptionSaving||descriptionGenerating} onClick={generateDescription}>{descriptionGenerating?<LoaderCircle size={18} className="ai-description-spin"/>:<WandSparkles size={18}/>} {descriptionGenerating?'Generating description…':'Generate with AI'}</button>{descriptionGenerating&&<p className="details-description-ai-status" role="status">Creating your WhatsApp description with emoji prices…</p>}{descriptionNotice&&<p role="status" className="details-description-success">{descriptionNotice}</p>}<div className="details-description-editor-actions"><button type="button" className="details-description-action" disabled={descriptionSaving||descriptionGenerating} onClick={()=>{setEditingDescription(false);setDescriptionDraft(product.description);setDescriptionError('')}}><X size={16}/> Cancel</button><button type="button" className="primary-btn" disabled={descriptionSaving||descriptionGenerating||descriptionDraft===product.description} onClick={saveDescription}>{descriptionSaving?<LoaderCircle size={16} className="ai-description-spin"/>:<Save size={16}/>} {descriptionSaving?'Saving…':'Save changes'}</button></div></div>:product.description?<p className="details-description-text">{product.description}</p>:<p className="details-description-empty">No description yet. Tap Edit to add one.</p>}
           {descriptionError&&<p role="alert" className="details-description-error">{descriptionError}</p>}
           {descriptionNotice&&!editingDescription&&<p role="status" className="details-description-success">{descriptionNotice}</p>}
         </section>
