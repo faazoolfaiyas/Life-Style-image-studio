@@ -13,7 +13,7 @@ Example 1 (dress/frock):
 📐 *L* – Height: 36" | Width: 18"
 📐 *XL* – Height: 37" | Width: 19"
 
-💰 Price: *LKR 950/-*
+💰 Price: *LKR 9️⃣5️⃣0️⃣/-*
 
 🎨 *Available Colors:* *Pink, Green, Beige & Grey*
 
@@ -30,10 +30,10 @@ Example 2 (bra with different size prices):
 📦 _VELONA BRA_
 
 📏 Sizes: *32, 34, 36*
-💰 Price: *LKR 300/-*
+💰 Price: *LKR 3️⃣0️⃣0️⃣/-*
 
 📏 Sizes: *38, 40, 42*
-💰 Price: *LKR 330/-*
+💰 Price: *LKR 3️⃣3️⃣0️⃣/-*
 
 📍 *Location*: _12, Main Street, Kattankudy 03_
 📞 *Contact*: _0767051440 / 0768509808_
@@ -48,7 +48,7 @@ Example 3 (skinny/shapewear):
 📦 _Shapewear_
 
 📏 Sizes: *XL, 2XL, 3XL*
-💰 Price: *LKR 1950/-*
+💰 Price: *LKR 1️⃣9️⃣5️⃣0️⃣/-*
 
 📍 *Location*: _12, Main Street, Kattankudy 03_
 📞 *Contact*: _0767051440 / 0768509808_
@@ -58,7 +58,14 @@ Example 3 (skinny/shapewear):
 ✨ *Life Style* ✨
 _Specialist in UnderGarments_
 
-Keep the footer identical in every output. For underwear, bra, skinny, shapewear use Specialist in UnderGarments; otherwise use Specialist in Ladies Wear. Prices are in LKR; show 950 not emoji digits. Do not add unsupported sales claims.`;
+Keep the footer identical in every output. For underwear, bra, skinny, shapewear use Specialist in UnderGarments; otherwise use Specialist in Ladies Wear. Prices are in LKR. CRITICAL: Every digit of every price MUST use keycap number emoji, never ordinary digits. Example: 950 -> 9️⃣5️⃣0️⃣, 300 -> 3️⃣0️⃣0️⃣, 1150 -> 1️⃣1️⃣5️⃣0️⃣, 1950 -> 1️⃣9️⃣5️⃣0️⃣. Only convert price digits; sizes, measurements, phone numbers and addresses remain ordinary digits. Do not add unsupported sales claims.`;
+const priceEmojiDigits=(value:string)=>value.replace(/[0-9]/g,d=>d+'\\uFE0F\\u20E3');
+function formatPriceEmojis(description:string):string{
+ return description.split('\\n').map(line=>{
+  if(!/\\b(?:price|prices|rs\\.?|lkr)\\b/i.test(line)||!/\\d/.test(line))return line;
+  return line.replace(/((?:\\b(?:LKR|Rs\\.?)\\s*)?\\d[\\d,]*(?:\\.\\d{1,2})?)(?=\\s*(?:\\/\\-|\\/|\\*|$|\\s))/gi,match=>priceEmojiDigits(match));
+ }).join('\\n');
+}
 export async function POST(req:NextRequest){
  try{
   const authorization=req.headers.get('authorization')||'';
@@ -86,7 +93,7 @@ export async function POST(req:NextRequest){
    if(!response.ok)return NextResponse.json({error:response.status===401?'DeepSeek API key is invalid.':response.status===429?'DeepSeek rate limit reached. Please try again.':json?.error?.message||'DeepSeek service is unavailable.'},{status:502});
    const description=json?.choices?.[0]?.message?.content?.trim().replace(/^\x60\x60\x60[^\n]*\n|\n\x60\x60\x60$/g,'');
    if(!description)return NextResponse.json({error:'DeepSeek returned an empty description. Please retry.'},{status:502});
-   return NextResponse.json({description});
+   return NextResponse.json({description:formatPriceEmojis(description)});
   }finally{clearTimeout(timeout)}
  }catch(error){return NextResponse.json({error:error instanceof Error&&error.name==='AbortError'?'Description generation timed out. Please retry.':'Could not generate description. Please try again.'},{status:500})}
 }
