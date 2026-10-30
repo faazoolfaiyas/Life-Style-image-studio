@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
-import {ChevronLeft,ChevronRight,Download,Share2,X,Copy,Check} from 'lucide-react';
+import {ChevronLeft,ChevronRight,Download,Share2,X,Copy,Check,CheckSquare,Square} from 'lucide-react';
 export type ViewImage={url:string;name:string};
 export async function shareLink(url:string,title:string){
  if(typeof navigator.share==='function'){
@@ -44,27 +44,73 @@ async function imageAsFile(url:string,name:string):Promise<File>{
  if(!blob.type.startsWith('image/'))throw Error('The image could not be loaded as a shareable file.');
  return new File([blob],imageFilename(name,blob.type),{type:blob.type});
 }
+
+// Build a standards-compliant ZIP (store method) without an extra dependency.
+function zipFiles(files:File[]):Promise<Blob>{
+ const encoder=new TextEncoder();
+ const crc=(data:Uint8Array)=>{let value=0xffffffff;for(const byte of data){value^=byte;for(let bit=0;bit<8;bit++)value=(value>>>1)^((value&1)?0xedb88320:0)}return (value^0xffffffff)>>>0};
+ const short=(view:DataView,offset:number,value:number)=>view.setUint16(offset,value,true);
+ const long=(view:DataView,offset:number,value:number)=>view.setUint32(offset,value>>>0,true);
+ return Promise.all(files.map(async file=>({name:encoder.encode(file.name),bytes:new Uint8Array(await file.arrayBuffer())}))).then(entries=>{
+  const chunks:BlobPart[]=[];const central:Uint8Array[]=[];let offset=0;
+  for(const entry of entries){
+   const size=entry.bytes.byteLength;const checksum=crc(entry.bytes);
+   const local=new Uint8Array(30+entry.name.length);const l=new DataView(local.buffer);
+   long(l,0,0x04034b50);short(l,4,20);short(l,6,0x0800);short(l,8,0);long(l,14,checksum);long(l,18,size);long(l,22,size);short(l,26,entry.name.length);local.set(entry.name,30);
+   chunks.push(local,entry.bytes);
+   const directory=new Uint8Array(46+entry.name.length);const d=new DataView(directory.buffer);
+   long(d,0,0x02014b50);short(d,4,20);short(d,6,20);short(d,8,0x0800);long(d,16,checksum);long(d,20,size);long(d,24,size);short(d,28,entry.name.length);long(d,42,offset);directory.set(entry.name,46);central.push(directory);
+   offset+=local.length+size;
+  }
+  const directorySize=central.reduce((sum,part)=>sum+part.length,0);
+  const end=new Uint8Array(22);const e=new DataView(end.buffer);
+  long(e,0,0x06054b50);short(e,8,entries.length);short(e,10,entries.length);long(e,12,directorySize);long(e,16,offset);
+  return new Blob([...chunks,...central,end],{type:'application/zip'});
+ });
+}
+function saveBlob(blob:Blob,name:string){
+ const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=name;document.body.appendChild(anchor);anchor.click();anchor.remove();window.setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
 export default function ImageViewer({images,index,onClose}:{images:ViewImage[];index:number;onClose:()=>void}){
  const [active,setActive]=useState(index);
- const [sharing,setSharing]=useState(false);
+ const [selectionMode,setSelectionMode]=useState(false);
+ const [selected,setSelected]=useState<number[]>([]);
+ const [working,setWorking]=useState(false);
  const [shareError,setShareError]=useState('');
- const shareImage=async()=>{
-  if(sharing)return;
-  setSharing(true);
-  setShareError('');
+ const current=images[active];
+ const chosenIndices=selectionMode?selected:[active];
+ const toggle=(i:number)=>setSelected(previous=>previous.includes(i)?previous.filter(x=>x!==i):[...previous,i]);
+ const prepareFiles=async()=>{
+  const names=new Set<string>();
+  const files:File[]=[];
+  for(const i of chosenIndices){
+   const image=images[i];const file=await imageAsFile(image.url,image.name);
+   let name=file.name;let number=2;
+   while(names.has(name)){name=file.name.replace(/(\\.[^.]+)?$/,match=>'_'+number++ +match)}
+   names.add(name);files.push(name===file.name?file:new File([file],name,{type:file.type}));
+  }
+  return files;
+ };
+ const run=async(action:'download'|'share')=>{
+  if(working||!chosenIndices.length)return;
+  setWorking(true);setShareError('');
   try{
-   const file=await imageAsFile(current.url,current.name);
-   if(typeof navigator.share!=='function'||!navigator.canShare?.({files:[file]})){
-    setShareError('This browser cannot share image files directly. Download the image and share it from your gallery.');
-    return;
+   const files=await prepareFiles();
+   if(action==='download'){
+    if(files.length===1)saveBlob(files[0],files[0].name);
+    else saveBlob(await zipFiles(files),'LifeStyle-images.zip');
+   }else{
+    if(typeof navigator.share!=='function'||!navigator.canShare?.({files})){
+     setShareError('This browser cannot share the selected image files directly. Download them instead and share from your gallery.');
+     return;
+    }
+    await navigator.share({files});
    }
-   await navigator.share({files:[file]});
   }catch(error){
-   if((error as Error).name!=='AbortError')setShareError(error instanceof Error?error.message:'Could not share this image.');
-  }finally{setSharing(false)}
+   if((error as Error).name!=='AbortError')setShareError(error instanceof Error?error.message:'Could not process the selected images.');
+  }finally{setWorking(false)}
  };
  const closeRef=useRef<HTMLButtonElement>(null);
- const current=images[active];
  useEffect(()=>{closeRef.current?.focus()},[]);
  useEffect(()=>{
   const key=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose();if(event.key==='ArrowLeft')setActive(v=>(v+images.length-1)%images.length);if(event.key==='ArrowRight')setActive(v=>(v+1)%images.length)};
@@ -80,9 +126,18 @@ export default function ImageViewer({images,index,onClose}:{images:ViewImage[];i
     <img src={current.url} alt={current.name}/>
     {images.length>1&&<button type="button" className="image-fullscreen-next" aria-label="Next image" onClick={()=>setActive(v=>(v+1)%images.length)}><ChevronRight size={24}/></button>}
    </div>
+   <div className="image-selection-toolbar">
+    <button type="button" disabled={working} onClick={()=>{setSelectionMode(v=>!v);setSelected([])}}>{selectionMode?'Cancel selection':'Select multiple'}</button>
+    {selectionMode&&<><span>{selected.length} selected</span><button type="button" onClick={()=>setSelected(images.map((_,i)=>i))}>Select all</button><button type="button" onClick={()=>setSelected([])}>Clear</button></>}
+   </div>
+   {selectionMode&&<div className="image-selection-strip" aria-label="Select images to download or share">
+    {images.map((image,i)=><button type="button" key={image.url+i} aria-label={'Select '+image.name} aria-pressed={selected.includes(i)} className={selected.includes(i)?'is-selected':''} onClick={()=>toggle(i)}>
+     <img src={image.url} alt={image.name}/>{selected.includes(i)?<CheckSquare size={20}/>:<Square size={20}/>}
+    </button>)}
+   </div>}
    <div className="image-fullscreen-actions">
-    <button type="button" onClick={()=>downloadImage(current.url,current.name)}><Download size={19}/> Download</button>
-    <button type="button" disabled={sharing} onClick={shareImage}><Share2 size={19}/> {sharing?'Preparing image…':'Share image'}</button>
+    <button type="button" disabled={working||chosenIndices.length===0} onClick={()=>run('download')}><Download size={19}/> {working?'Preparing…':selectionMode?'Download selected':'Download'}</button>
+    <button type="button" disabled={working||chosenIndices.length===0} onClick={()=>run('share')}><Share2 size={19}/> {working?'Preparing…':selectionMode?'Share selected':'Share image'}</button>
    </div>
    {shareError&&<p role="alert" className="image-share-error">{shareError}</p>}
   </section>
