@@ -232,3 +232,6 @@ dialog.details-dialog::backdrop{background:rgba(8,5,14,.84)}
 .details-description-empty{color:#ac9bbb;font-size:13px}
 .details-description-error{margin-top:12px;color:#fda4af;font-size:12px}
 .details-description-success{margin-top:12px;color:#86efac;font-size:12px}
+
+.details-description-generate{width:100%;justify-content:center;margin-top:12px;margin-bottom:8px}
+.details-description-ai-status{font-size:12px;color:#c9aef0;margin:8px 0 12px}
