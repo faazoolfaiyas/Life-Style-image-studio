@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, LoaderCircle, RefreshCw, Trash2, Pencil, Share2, Check, X, Save } from 'lucide-react';
 import ImageViewer, {SharePopup, type ViewImage} from './image-viewer';
 import { generatedImages, type GeneratedImage, type DeleteProgress, type Kind, type Photo, type Product } from './cloud';
 
@@ -16,6 +16,7 @@ type Props = {
   copied: boolean;
   onBack: () => void;
   onCopy: () => void;
+  onSaveDescription: (description:string) => Promise<void>;
   onDelete: (onProgress: (progress: DeleteProgress) => void) => Promise<void>;
   onFilter: (filter: Filter) => void;
   onSlide: (index: number) => void;
@@ -37,10 +38,21 @@ export default function ProductDetails({
   copied,
   onBack,
   onCopy,
+  onSaveDescription,
   onDelete,
   onFilter,
   onSlide,
 }: Props) {
+  const [editingDescription,setEditingDescription]=useState(false);
+  const [descriptionDraft,setDescriptionDraft]=useState(product.description);
+  const [descriptionSaving,setDescriptionSaving]=useState(false);
+  const [descriptionError,setDescriptionError]=useState('');
+  const [descriptionCopied,setDescriptionCopied]=useState(false);
+  const [descriptionNotice,setDescriptionNotice]=useState('');
+  useEffect(()=>{setDescriptionDraft(product.description);setEditingDescription(false);setDescriptionError('');setDescriptionNotice('')},[product.id,product.description]);
+  const saveDescription=async()=>{setDescriptionSaving(true);setDescriptionError('');try{await onSaveDescription(descriptionDraft);setEditingDescription(false);setDescriptionNotice('Description saved successfully.')}catch(e){setDescriptionError(e instanceof Error?e.message:'Could not save description.')}finally{setDescriptionSaving(false)}};
+  const copyDescription=async()=>{try{await navigator.clipboard.writeText(product.description);setDescriptionCopied(true);setDescriptionNotice('Description copied to clipboard.');window.setTimeout(()=>setDescriptionCopied(false),2000)}catch{setDescriptionError('Copy unavailable. Select and copy the description manually.')}};
+  const shareDescription=async()=>{setDescriptionError('');if(!navigator.share){try{await navigator.clipboard.writeText(product.description);setDescriptionNotice('Sharing is unavailable on this device. Description copied instead.')}catch{setDescriptionError('Sharing is not supported in this browser.')}}else{try{await navigator.share({text:product.description})}catch(e){if(e instanceof Error&&e.name!=='AbortError')setDescriptionError('Could not share description. Please try copying it instead.')}}};
   const [deleting, setDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState<DeleteProgress | null>(null);
   const [deleteError, setDeleteError] = useState('');
@@ -232,12 +244,12 @@ export default function ProductDetails({
             ))}</div> : <p className="generated-empty">No generated images yet. Images added to this product’s generated folder will appear here when refreshed.</p>}
         </section>
 
-        {product.description && (
-          <section className="details-description" aria-labelledby="details-description-title">
-            <h2 id="details-description-title">Description</h2>
-            <p>{product.description}</p>
-          </section>
-        )}
+        <section className="details-description" aria-labelledby="details-description-title">
+          <div className="details-description-heading"><h2 id="details-description-title">Description</h2><div className="details-description-actions">{!editingDescription&&<><button type="button" onClick={()=>{setDescriptionDraft(product.description);setDescriptionError('');setDescriptionNotice('');setEditingDescription(true)}} className="details-description-action"><Pencil size={16}/> Edit</button><button type="button" disabled={!product.description} onClick={copyDescription} className="details-description-action">{descriptionCopied?<Check size={16}/>:<Copy size={16}/>} {descriptionCopied?'Copied':'Copy'}</button><button type="button" disabled={!product.description} onClick={shareDescription} className="details-description-action"><Share2 size={16}/> Share</button></>}</div></div>
+          {editingDescription?<div className="details-description-editor"><label htmlFor="edit-product-description" className="sr-only">Edit product description</label><textarea id="edit-product-description" className="field details-description-textarea" value={descriptionDraft} onChange={e=>setDescriptionDraft(e.target.value)} disabled={descriptionSaving} placeholder="Add your product description…" rows={9}/><div className="details-description-editor-actions"><button type="button" className="details-description-action" disabled={descriptionSaving} onClick={()=>{setEditingDescription(false);setDescriptionDraft(product.description);setDescriptionError('')}}><X size={16}/> Cancel</button><button type="button" className="primary-btn" disabled={descriptionSaving||descriptionDraft===product.description} onClick={saveDescription}>{descriptionSaving?<LoaderCircle size={16} className="ai-description-spin"/>:<Save size={16}/>} {descriptionSaving?'Saving…':'Save changes'}</button></div></div>:product.description?<p className="details-description-text">{product.description}</p>:<p className="details-description-empty">No description yet. Tap Edit to add one.</p>}
+          {descriptionError&&<p role="alert" className="details-description-error">{descriptionError}</p>}
+          {descriptionNotice&&!editingDescription&&<p role="status" className="details-description-success">{descriptionNotice}</p>}
+        </section>
       </div>
 
       {viewerIndex!==null&&<ImageViewer images={allImages} index={viewerIndex} onClose={()=>setViewerIndex(null)}/>}
