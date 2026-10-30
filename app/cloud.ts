@@ -93,3 +93,10 @@ export async function remove(id:string,onProgress?:(progress:DeleteProgress)=>vo
   }
   onProgress?.({phase:'complete',completed:total,total,label:'Product deleted'});
 }
+
+export async function updateProductDescription(productId:string,description:string):Promise<void>{
+ const user=await getUser();if(!user)throw Error('Please sign in first.');
+ const {data,error}=await supabase.from('products').update({description}).eq('id',productId).eq('owner_id',user.id).select('id').maybeSingle();
+ if(error)throw error;
+ if(!data)throw Error('Could not update description. Check your product permissions.');
+}
