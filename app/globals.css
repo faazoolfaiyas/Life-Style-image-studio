@@ -193,3 +193,13 @@ dialog.details-dialog::backdrop{background:rgba(8,5,14,.84)}
 
 .image-share-error{margin:12px 4px 4px;padding:12px;border:1px solid rgba(251,113,133,.35);border-radius:12px;background:rgba(127,35,61,.16);color:#fecdd3;font-size:13px;line-height:1.5}
 .image-fullscreen-actions button:disabled{opacity:.6;cursor:wait}
+
+.image-selection-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 3px 0;font-size:13px;color:#d7c9ec}
+.image-selection-toolbar button{min-height:36px;padding:7px 12px;border:1px solid #79599780;border-radius:10px;background:#302044;color:#f3e9ff}
+.image-selection-toolbar span{margin-left:auto}
+.image-selection-strip{display:flex;gap:9px;overflow-x:auto;padding:10px 2px;scrollbar-width:thin}
+.image-selection-strip button{position:relative;flex:0 0 76px;width:76px;height:76px;overflow:hidden;border:2px solid #6c4b8b88;border-radius:12px;background:#110b19}
+.image-selection-strip button.is-selected{border-color:#e9c878;box-shadow:0 0 0 2px #e9c87844}
+.image-selection-strip img{width:100%;height:100%;object-fit:cover}
+.image-selection-strip svg{position:absolute;right:4px;top:4px;filter:drop-shadow(0 1px 3px #000);color:#fff}
+.image-selection-strip button.is-selected svg{color:#f4d789}
