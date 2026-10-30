@@ -59,12 +59,12 @@ Example 3 (skinny/shapewear):
 _Specialist in UnderGarments_
 
 Keep the footer identical in every output. For underwear, bra, skinny, shapewear use Specialist in UnderGarments; otherwise use Specialist in Ladies Wear. Prices are in LKR. CRITICAL: Every digit of every price MUST use keycap number emoji, never ordinary digits. Example: 950 -> 9️⃣5️⃣0️⃣, 300 -> 3️⃣0️⃣0️⃣, 1150 -> 1️⃣1️⃣5️⃣0️⃣, 1950 -> 1️⃣9️⃣5️⃣0️⃣. Only convert price digits; sizes, measurements, phone numbers and addresses remain ordinary digits. Do not add unsupported sales claims.`;
-const priceEmojiDigits=(value:string)=>value.replace(/[0-9]/g,d=>d+'\\uFE0F\\u20E3');
+const priceEmojiDigits=(value:string)=>value.replace(/[0-9]/g,d=>d+'\uFE0F\u20E3');
 function formatPriceEmojis(description:string):string{
- return description.split('\\n').map(line=>{
-  if(!/\\b(?:price|prices|rs\\.?|lkr)\\b/i.test(line)||!/\\d/.test(line))return line;
-  return line.replace(/((?:\\b(?:LKR|Rs\\.?)\\s*)?\\d[\\d,]*(?:\\.\\d{1,2})?)(?=\\s*(?:\\/\\-|\\/|\\*|$|\\s))/gi,match=>priceEmojiDigits(match));
- }).join('\\n');
+ return description.split('\n').map(line=>{
+  if(!/(?:price|prices|LKR|Rs\.?)/i.test(line))return line;
+  return line.replace(/\d[\d,]*(?:\.\d{1,2})?/g,number=>priceEmojiDigits(number));
+ }).join('\n');
 }
 export async function POST(req:NextRequest){
  try{
