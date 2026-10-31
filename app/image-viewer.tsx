@@ -77,6 +77,8 @@ export default function ImageViewer({images,index,onClose}:{images:ViewImage[];i
  const [selected,setSelected]=useState<number[]>([]);
  const [working,setWorking]=useState(false);
  const [shareError,setShareError]=useState('');
+ const [shareReady,setShareReady]=useState<{key:string;files:File[]}|null>(null);
+ const [sharePreparing,setSharePreparing]=useState(false);
  const current=images[active];
  const chosenIndices=selectionMode?selected:[active];
  const toggle=(i:number)=>setSelected(previous=>previous.includes(i)?previous.filter(x=>x!==i):[...previous,i]);
@@ -91,24 +93,60 @@ export default function ImageViewer({images,index,onClose}:{images:ViewImage[];i
   }
   return files;
  };
- const run=async(action:'download'|'share')=>{
+ const selectionKey=chosenIndices.map(i=>images[i]?.url+'#'+i).join('|');
+ // Fetch image blobs before the user taps Share. navigator.share must run
+ // synchronously inside the click handler to retain transient user activation.
+ useEffect(()=>{
+  let cancelled=false;
+  setShareReady(null);
+  setShareError('');
+  if(!chosenIndices.length){setSharePreparing(false);return}
+  setSharePreparing(true);
+  const names=new Set<string>();
+  Promise.all(chosenIndices.map(async i=>{
+   const image=images[i];
+   return imageAsFile(image.url,image.name);
+  })).then(files=>{
+   if(cancelled)return;
+   const unique=files.map(file=>{
+    let name=file.name;let n=2;
+    while(names.has(name)){name=file.name.replace(/(\.[^.]+)?$/,(_,ext:string)=>'_'+n+++(ext||''))}
+    names.add(name);
+    return name===file.name?file:new File([file],name,{type:file.type});
+   });
+   setShareReady({key:selectionKey,files:unique});
+  }).catch(error=>{
+   if(!cancelled)setShareError(error instanceof Error?error.message:'Could not prepare images for sharing.');
+  }).finally(()=>{if(!cancelled)setSharePreparing(false)});
+  return()=>{cancelled=true};
+ // Selection key captures the current selected images and avoids refetching on unrelated renders.
+ },[selectionKey]);
+ const runDownload=async()=>{
   if(working||!chosenIndices.length)return;
   setWorking(true);setShareError('');
   try{
-   const files=await prepareFiles();
-   if(action==='download'){
-    if(files.length===1)saveBlob(files[0],files[0].name);
-    else saveBlob(await zipFiles(files),'LifeStyle-images.zip');
-   }else{
-    if(typeof navigator.share!=='function'||!navigator.canShare?.({files})){
-     setShareError('This browser cannot share the selected image files directly. Download them instead and share from your gallery.');
-     return;
-    }
-    await navigator.share({files});
-   }
-  }catch(error){
-   if((error as Error).name!=='AbortError')setShareError(error instanceof Error?error.message:'Could not process the selected images.');
-  }finally{setWorking(false)}
+   const files=shareReady?.key===selectionKey?shareReady.files:await prepareFiles();
+   if(files.length===1)saveBlob(files[0],files[0].name);
+   else saveBlob(await zipFiles(files),'LifeStyle-images.zip');
+  }catch(error){setShareError(error instanceof Error?error.message:'Could not download images.')}
+  finally{setWorking(false)}
+ };
+ const runShare=()=>{
+  if(working||sharePreparing||shareReady?.key!==selectionKey||!shareReady.files.length)return;
+  setShareError('');
+  const files=shareReady.files;
+  if(typeof navigator.share!=='function'||!navigator.canShare?.({files})){
+   setShareError('This browser cannot share the selected image files directly. Download them instead and share from your gallery.');
+   return;
+  }
+  // Do not await fetch, state updates or any other promise before this call.
+  try{
+   const sharePromise=navigator.share({files});
+   setWorking(true);
+   sharePromise.catch(error=>{
+    if((error as Error).name!=='AbortError')setShareError(error instanceof Error?error.message:'Could not share the selected images.');
+   }).finally(()=>setWorking(false));
+  }catch(error){setShareError(error instanceof Error?error.message:'Could not share the selected images.')}
  };
  const closeRef=useRef<HTMLButtonElement>(null);
  useEffect(()=>{closeRef.current?.focus()},[]);
@@ -136,8 +174,8 @@ export default function ImageViewer({images,index,onClose}:{images:ViewImage[];i
     </button>)}
    </div>}
    <div className="image-fullscreen-actions">
-    <button type="button" disabled={working||chosenIndices.length===0} onClick={()=>run('download')}><Download size={19}/> {working?'Preparing…':selectionMode?'Download selected':'Download'}</button>
-    <button type="button" disabled={working||chosenIndices.length===0} onClick={()=>run('share')}><Share2 size={19}/> {working?'Preparing…':selectionMode?'Share selected':'Share image'}</button>
+    <button type="button" disabled={working||chosenIndices.length===0} onClick={runDownload}><Download size={19}/> {working?'Preparing…':selectionMode?'Download selected':'Download'}</button>
+    <button type="button" disabled={working||sharePreparing||shareReady?.key!==selectionKey||chosenIndices.length===0} onClick={runShare}><Share2 size={19}/> {sharePreparing?'Loading images…':working?'Sharing…':selectionMode?'Share selected':'Share image'}</button>
    </div>
    {shareError&&<p role="alert" className="image-share-error">{shareError}</p>}
   </section>
