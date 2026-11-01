@@ -1,6 +1,6 @@
 'use client';
 
-import {useState} from 'react';
+import {useRef,useState} from 'react';
 import {ArrowUpRight, Check, ChevronLeft, ChevronRight, Expand, Images, Share2} from 'lucide-react';
 import ImageViewer,{type ViewImage} from './image-viewer';
 
@@ -11,6 +11,8 @@ export default function PublicImageGallery({images,productName}:Props){
  const [viewerOpen,setViewerOpen]=useState(false);
  const [copied,setCopied]=useState(false);
  const [shareMessage,setShareMessage]=useState('');
+ const swipeStart=useRef<{x:number;y:number}|null>(null);
+ const ignoreNextOpen=useRef(false);
  const current=images[active];
  const move=(delta:number)=>setActive(previous=>(previous+delta+images.length)%images.length);
  const shareProduct=()=>{
@@ -28,8 +30,18 @@ export default function PublicImageGallery({images,productName}:Props){
  };
  if(!current)return <div className="lp-gallery-empty"><Images size={29}/><strong>Product photos coming soon</strong><p>Check back shortly for photos of this item, or contact us for details.</p></div>;
  return <div className="lp-gallery" aria-label="Product photo gallery">
-  <div className="lp-hero-frame">
-   <button type="button" className="lp-hero-zoom" onClick={()=>setViewerOpen(true)} aria-label={'Open '+productName+' image full screen'}>
+  <div className="lp-hero-frame" onTouchStart={event=>{const touch=event.touches[0];if(touch)swipeStart.current={x:touch.clientX,y:touch.clientY}}} onTouchEnd={event=>{
+   const start=swipeStart.current;swipeStart.current=null;
+   const end=event.changedTouches[0];
+   if(!start||!end||images.length<2)return;
+   const dx=end.clientX-start.x,dy=end.clientY-start.y;
+   if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.25){
+    ignoreNextOpen.current=true;
+    move(dx<0?1:-1);
+    window.setTimeout(()=>{ignoreNextOpen.current=false},350);
+   }
+  }} onTouchCancel={()=>{swipeStart.current=null}}>
+   <button type="button" className="lp-hero-zoom" onClick={()=>{if(ignoreNextOpen.current){ignoreNextOpen.current=false;return}setViewerOpen(true)}} aria-label={'Open '+productName+' image full screen'}>
     <img src={current.url} alt={current.name} fetchPriority="high" decoding="async"/>
     <span className="lp-hero-zoom-hint"><Expand size={16}/> Tap to view larger</span>
    </button>
