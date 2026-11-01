@@ -69,7 +69,7 @@ export async function remove(id:string,onProgress?:(progress:DeleteProgress)=>vo
   const paths=(data||[]).map(x=>x.storage_path);
   const github=paths.filter(x=>x.startsWith('github:'));
   const legacy=paths.filter(x=>!x.startsWith('github:'));
-  const total=github.length+2+(legacy.length?1:0);
+  const total=github.length+3+(legacy.length?1:0);
   let completed=0;
   for(const path of github){
     onProgress?.({phase:'images',completed,total,label:'Removing image '+(completed+1)+' of '+github.length});
@@ -79,6 +79,9 @@ export async function remove(id:string,onProgress?:(progress:DeleteProgress)=>vo
   }
   onProgress?.({phase:'generated',completed,total,label:'Removing generated images and folder'});
   await api('/api/generated?productId='+encodeURIComponent(id),{method:'DELETE'});
+  completed++;
+  onProgress?.({phase:'generated',completed,total,label:'Removing saved description and upload history'});
+  await api('/api/product-files?productId='+encodeURIComponent(id),{method:'DELETE'});
   completed++;
   onProgress?.({phase:'record',completed,total,label:'Deleting product record'});
   const {error:delError}=await supabase.from('products').delete().eq('id',id);
