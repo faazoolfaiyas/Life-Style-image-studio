@@ -1,7 +1,7 @@
 'use client';
 import {useMemo,useState} from 'react';
 import Link from 'next/link';
-import {ArrowRight,ArrowUpRight,ChevronDown,Instagram,MapPin,MessageCircle,Search,ShoppingBag,SlidersHorizontal,Sparkles,X} from 'lucide-react';
+import {ArrowRight,ArrowUpRight,ChevronDown,MapPin,MessageCircle,Search,ShoppingBag,SlidersHorizontal,Sparkles,X} from 'lucide-react';
 
 export type PublicStoreItem={id:string;name:string;description:string;createdAt:string;photos:string[]};
 type Category='all'|'ladies'|'intimates'|'other';
