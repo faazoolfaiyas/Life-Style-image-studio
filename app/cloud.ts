@@ -55,7 +55,7 @@ async function prepareUpload(blob:Blob):Promise<{file:Blob;extension:string}>{
   throw Error('This image is too large to upload. Try a smaller image.');
  }finally{bitmap.close()}
 }
-export async function put(p:Product,onProgress?:(progress:UploadProgress)=>void){const user=await getUser();if(!user)throw Error('Please sign in first.');const uploaded:string[]=[];let inserted=false;const {data:{session}}=await supabase.auth.getSession();if(!session)throw Error('Please sign in first.');try{for(let i=0;i<p.photos.length;i++){const photo=p.photos[i];const blob=await(await fetch(photo.data)).blob();const prepared=await prepareUpload(blob);const form=new FormData();form.append('file',prepared.file,photo.label.replace(/\.[^.]+$/,'')+'.'+prepared.extension);form.append('productId',p.id);form.append('kind',photo.kind);onProgress?.({index:i,total:p.photos.length,percent:0,name:photo.label,phase:'uploading'});const result=await uploadWithProgress(form,session.access_token,percent=>onProgress?.({index:i,total:p.photos.length,percent,name:photo.label,phase:'uploading'}));uploaded.push(result.path)}onProgress?.({index:p.photos.length,total:p.photos.length,percent:100,name:'Saving product',phase:'saving'});const {error}=await supabase.from('products').insert({id:p.id,owner_id:user.id,name:p.name,description:p.description});if(error)throw error;inserted=true;for(let i=0;i<p.photos.length;i++){const photo=p.photos[i];const {error:rowError}=await supabase.from('product_images').insert({product_id:p.id,owner_id:user.id,kind:photo.kind,storage_path:uploaded[i],filename:photo.label,sort_order:i});if(rowError)throw rowError}await api('/api/generated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({productId:p.id})})}catch(e){if(inserted)await supabase.from('products').delete().eq('id',p.id);throw e}}
+export async function put(p:Product,onProgress?:(progress:UploadProgress)=>void){const user=await getUser();if(!user)throw Error('Please sign in first.');const uploaded:string[]=[];let inserted=false;const {data:{session}}=await supabase.auth.getSession();if(!session)throw Error('Please sign in first.');try{for(let i=0;i<p.photos.length;i++){const photo=p.photos[i];const blob=await(await fetch(photo.data)).blob();const prepared=await prepareUpload(blob);const form=new FormData();form.append('file',prepared.file,photo.label.replace(/\.[^.]+$/,'')+'.'+prepared.extension);form.append('productId',p.id);form.append('kind',photo.kind);onProgress?.({index:i,total:p.photos.length,percent:0,name:photo.label,phase:'uploading'});const result=await uploadWithProgress(form,session.access_token,percent=>onProgress?.({index:i,total:p.photos.length,percent,name:photo.label,phase:'uploading'}));uploaded.push(result.path)}onProgress?.({index:p.photos.length,total:p.photos.length,percent:100,name:'Saving product',phase:'saving'});const {error}=await supabase.from('products').insert({id:p.id,owner_id:user.id,name:p.name,description:p.description});if(error)throw error;inserted=true;for(let i=0;i<p.photos.length;i++){const photo=p.photos[i];const {error:rowError}=await supabase.from('product_images').insert({product_id:p.id,owner_id:user.id,kind:photo.kind,storage_path:uploaded[i],filename:photo.label,sort_order:i});if(rowError)throw rowError}await api('/api/generated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({productId:p.id})});let warning='';try{await api('/api/product-files',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sync',productId:p.id})})}catch(e){warning='Product saved, but repository text files could not be synced. Use Sync files in product details to retry.';console.error('Product repository sync',e)}return {warning}}catch(e){if(inserted)await supabase.from('products').delete().eq('id',p.id);throw e}}
 export type DeleteProgress = {
   phase: 'loading' | 'images' | 'generated' | 'record' | 'storage' | 'complete';
   completed: number;
@@ -96,7 +96,47 @@ export async function remove(id:string,onProgress?:(progress:DeleteProgress)=>vo
 
 export async function updateProductDescription(productId:string,description:string):Promise<void>{
  const user=await getUser();if(!user)throw Error('Please sign in first.');
- const {data,error}=await supabase.from('products').update({description}).eq('id',productId).eq('owner_id',user.id).select('id').maybeSingle();
- if(error)throw error;
- if(!data)throw Error('Could not update description. Check your product permissions.');
+ await api('/api/product-files',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'description',productId,description})});
+}
+
+
+export type AddImagesProgress={index:number;total:number;percent:number;filename:string;stage:'uploading'|'saving'|'syncing'};
+export async function addProductImages(
+ productId:string,files:File[],kind:'main'|'color'|'other',
+ onProgress?:(progress:AddImagesProgress)=>void
+):Promise<{warning:string}>{
+ const user=await getUser();
+ if(!user)throw Error('Please sign in first.');
+ if(!files.length)throw Error('Choose at least one image.');
+ const {data:existing,error:productError}=await supabase.from('products').select('id').eq('id',productId).eq('owner_id',user.id).maybeSingle();
+ if(productError||!existing)throw Error('You cannot edit this product.');
+ const {data:{session}}=await supabase.auth.getSession();
+ if(!session)throw Error('Your session expired. Sign in again.');
+ const {data:last,error:orderError}=await supabase.from('product_images').select('sort_order').eq('product_id',productId).order('sort_order',{ascending:false}).limit(1);
+ if(orderError)throw orderError;
+ const start=(last?.[0]?.sort_order??-1)+1;
+ const imageIds:string[]=[];
+ for(let index=0;index<files.length;index++){
+  const file=files[index];
+  if(!file.type.startsWith('image/'))throw Error('Only image files can be uploaded.');
+  onProgress?.({index,total:files.length,percent:0,filename:file.name,stage:'uploading'});
+  const prepared=await prepareUpload(file);
+  const form=new FormData();
+  form.append('file',prepared.file,file.name.replace(/\.[^.]+$/,'')+'.'+prepared.extension);
+  form.append('productId',productId);
+  form.append('kind',kind);
+  const uploaded=await uploadWithProgress(form,session.access_token,percent=>onProgress?.({index,total:files.length,percent,filename:file.name,stage:'uploading'}));
+  onProgress?.({index,total:files.length,percent:100,filename:file.name,stage:'saving'});
+  const {data:row,error}=await supabase.from('product_images').insert({
+   product_id:productId,owner_id:user.id,kind,storage_path:uploaded.path,filename:file.name,sort_order:start+index
+  }).select('id').single();
+  if(error||!row)throw Error('Image uploaded but its product record could not be saved: '+(error?.message||'Unknown error'));
+  imageIds.push(row.id);
+ }
+ onProgress?.({index:files.length,total:files.length,percent:100,filename:'Updating repository files',stage:'syncing'});
+ let warning='';
+ try{
+  await api('/api/product-files',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'images',productId,imageIds})});
+ }catch(e){warning='Images saved, but updates.txt could not be synced. Use Sync files to retry.';console.error('Image history sync',e)}
+ return {warning};
 }
