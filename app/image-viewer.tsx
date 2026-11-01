@@ -80,6 +80,7 @@ export default function ImageViewer({images,index,onClose}:{images:ViewImage[];i
  const [shareReady,setShareReady]=useState<{key:string;files:File[]}|null>(null);
  const [sharePreparing,setSharePreparing]=useState(false);
  const current=images[active];
+ const viewerSwipe=useRef<{x:number;y:number}|null>(null);
  const chosenIndices=selectionMode?selected:[active];
  const toggle=(i:number)=>setSelected(previous=>previous.includes(i)?previous.filter(x=>x!==i):[...previous,i]);
  const prepareFiles=async()=>{
@@ -159,7 +160,13 @@ export default function ImageViewer({images,index,onClose}:{images:ViewImage[];i
  return <div className="image-modal-overlay" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}>
   <section role="dialog" aria-modal="true" aria-label="Full image viewer" className="image-fullscreen">
    <div className="image-modal-top"><span title={current.name}>{current.name} <small>{active+1} / {images.length}</small></span><button ref={closeRef} type="button" aria-label="Close image viewer" onClick={onClose}><X size={22}/></button></div>
-   <div className="image-fullscreen-stage">
+   <div className="image-fullscreen-stage" onTouchStart={event=>{const touch=event.touches[0];if(touch)viewerSwipe.current={x:touch.clientX,y:touch.clientY}}} onTouchEnd={event=>{
+    const start=viewerSwipe.current;viewerSwipe.current=null;
+    const end=event.changedTouches[0];
+    if(!start||!end||images.length<2)return;
+    const dx=end.clientX-start.x,dy=end.clientY-start.y;
+    if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.25)setActive(previous=>(previous+(dx<0?1:-1)+images.length)%images.length);
+   }} onTouchCancel={()=>{viewerSwipe.current=null}}>
     {images.length>1&&<button type="button" className="image-fullscreen-prev" aria-label="Previous image" onClick={()=>setActive(v=>(v+images.length-1)%images.length)}><ChevronLeft size={24}/></button>}
     <img src={current.url} alt={current.name}/>
     {images.length>1&&<button type="button" className="image-fullscreen-next" aria-label="Next image" onClick={()=>setActive(v=>(v+1)%images.length)}><ChevronRight size={24}/></button>}
