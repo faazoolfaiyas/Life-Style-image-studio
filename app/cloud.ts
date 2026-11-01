@@ -12,10 +12,10 @@ export async function getUser():Promise<User|null>{const {data,error}=await supa
 export async function load():Promise<Product[]>{const {data:rows,error}=await supabase.from('products').select('id,name,description,created_at,product_images(id,kind,storage_path,filename,sort_order)').order('created_at',{ascending:false});if(error)throw error;const products:Product[]=[];for(const row of rows??[]){const photos:Photo[]=[];for(const img of [...(row.product_images??[])].sort((a,b)=>a.sort_order-b.sort_order)){photos.push({id:img.id,kind:img.kind as Kind,data:imageUrl(img.storage_path),label:img.filename,path:img.storage_path})}products.push({id:row.id,name:row.name,description:row.description??'',createdAt:new Date(row.created_at).getTime(),photos})}return products}
 async function api(path:string,init:RequestInit){const {data:{session}}=await supabase.auth.getSession();if(!session)throw Error('Please sign in first.');const res=await fetch(path,{...init,headers:{...init.headers,Authorization:'Bearer '+session.access_token}});const json=await res.json();if(!res.ok)throw Error(json.error||'Image storage request failed');return json}
 export type UploadProgress={index:number;total:number;percent:number;name:string;phase:'uploading'|'saving'};
-async function uploadWithProgress(form:FormData,token:string,onProgress:(percent:number)=>void):Promise<{path:string}>{
+async function uploadWithProgress(form:FormData,token:string,onProgress:(percent:number)=>void,endpoint='/api/images'):Promise<{path:string}>{
  return new Promise((resolve,reject)=>{
   const xhr=new XMLHttpRequest();
-  xhr.open('POST','/api/images');
+  xhr.open('POST',endpoint);
   xhr.timeout=120000;
   xhr.setRequestHeader('Authorization','Bearer '+token);
   xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(Math.min(95,Math.round(e.loaded/e.total*95)))};
@@ -146,4 +146,50 @@ export async function addProductImages(
 
 export async function syncProductFiles(productId:string):Promise<void>{
  await api('/api/product-files',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sync',productId})});
+}
+
+
+/** Upload completed showcase photos straight to the product's public gallery.
+ * These files deliberately do not become main/color/other reference images.
+ */
+export type ShowcaseUploadProgress={
+ index:number;total:number;percent:number;filename:string;stage:'preparing'|'uploading'|'syncing'
+};
+export async function uploadShowcaseImages(
+ productId:string,files:File[],onProgress?:(progress:ShowcaseUploadProgress)=>void
+):Promise<{uploaded:number;warning:string}>{
+ if(!files.length)throw Error('Choose at least one finished photo.');
+ if(files.length>20)throw Error('Please select up to 20 images per upload.');
+ const {data:{session}}=await supabase.auth.getSession();
+ if(!session)throw Error('Please sign in again.');
+ const allowed=['image/jpeg','image/png','image/webp','image/gif','image/avif'];
+ let uploaded=0;
+ for(let i=0;i<files.length;i++){
+  const original=files[i];
+  if(!allowed.includes(original.type))throw Error('"'+original.name+'" is not a supported photo format.');
+  onProgress?.({index:i,total:files.length,percent:0,filename:original.name,stage:'preparing'});
+  try{
+   const prepared=await prepareUpload(original);
+   const form=new FormData();
+   const base=original.name.replace(/\.[^.]+$/,'')||'showcase-photo';
+   form.append('file',prepared.file,base+'.'+prepared.extension);
+   form.append('productId',productId);
+   await uploadWithProgress(form,session.access_token,percent=>
+    onProgress?.({index:i,total:files.length,percent,filename:original.name,stage:'uploading'})
+   ,'/api/generated/upload');
+   uploaded++;
+  }catch(error){
+   const reason=error instanceof Error?error.message:'The upload failed.';
+   throw Error((uploaded?uploaded+' photo(s) saved successfully. ':'')+'Failed on '+original.name+': '+reason);
+  }
+ }
+ onProgress?.({index:files.length,total:files.length,percent:100,filename:'Syncing image history',stage:'syncing'});
+ let warning='';
+ try{
+  await api('/api/product-files',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sync',productId})});
+ }catch(error){
+  console.error('Could not sync showcase upload history',error);
+  warning='Photos uploaded, but updates.txt could not be synced. Tap Sync files to retry.';
+ }
+ return {uploaded,warning};
 }
