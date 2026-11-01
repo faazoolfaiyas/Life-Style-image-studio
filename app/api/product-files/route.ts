@@ -114,3 +114,33 @@ export async function POST(req:NextRequest){
   return NextResponse.json({error:(databaseSaved?'Description saved in the database, but repository sync failed: ':'Repository sync failed: ')+reason,saved:databaseSaved},{status:502});
  }
 }
+
+
+// Delete the synchronized text files when their product is removed so old
+// descriptions and upload histories are not left publicly accessible.
+export async function DELETE(req:NextRequest){
+ const auth=await authenticate(req);
+ if(!auth)return NextResponse.json({error:'Please sign in.'},{status:401});
+ const id=req.nextUrl.searchParams.get('productId')||'';
+ if(!validId.test(id))return NextResponse.json({error:'Invalid product ID'},{status:400});
+ const {data:product}=await auth.client.from('products').select('id').eq('id',id).eq('owner_id',auth.user.id).maybeSingle();
+ if(!product)return NextResponse.json({error:'Forbidden'},{status:403});
+ const token=process.env.GITHUB_IMAGES_TOKEN;
+ if(!token)return NextResponse.json({error:'GitHub repository is not configured'},{status:503});
+ try{
+  for(const name of ['description.txt','updates.txt']){
+   const path='products/'+id+'/'+name;
+   const url=fileUrl(path);
+   const lookup=await fetch(url+'?ref='+branch,{headers:headers(token),cache:'no-store'});
+   if(lookup.status===404)continue;
+   if(!lookup.ok)throw Error('Could not inspect '+name);
+   const file=await lookup.json() as GitHubText;
+   const result=await fetch(url,{
+    method:'DELETE',headers:headers(token),cache:'no-store',
+    body:JSON.stringify({message:'Remove product information '+id,branch,sha:file.sha})
+   });
+   if(!result.ok&&result.status!==404)throw Error('Could not remove '+name);
+  }
+  return NextResponse.json({ok:true});
+ }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Could not remove repository files'},{status:502})}
+}
