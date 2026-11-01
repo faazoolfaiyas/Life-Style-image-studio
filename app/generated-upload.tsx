@@ -45,6 +45,8 @@ export default function GeneratedUpload({productId,onUploaded}:{productId:string
    setFiles([]);
    setNotice(result.warning||result.uploaded+' showcase '+(result.uploaded===1?'photo has':'photos have')+' been added to the public product gallery.');
   }catch(e){
+   const completed=e instanceof Error?((e as Error&{uploaded?:number}).uploaded??0):0;
+   if(completed>0)setFiles(previous=>previous.slice(completed));
    setError(e instanceof Error?e.message:'The images could not be uploaded.');
   }finally{
    setUploading(false);setProgress(null);
