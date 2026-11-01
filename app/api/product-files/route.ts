@@ -82,19 +82,13 @@ export async function POST(req:NextRequest){
   databaseSaved=true;
  }
  try{
-  if(action==='sync'||action==='description'){
-   await updateText(token,folder+'description.txt',()=>storedDescription);
-  }
-  if(action==='sync'||action==='images'){
-   let imageIds:string[]|undefined;
-   if(action==='images'){
-    if(!Array.isArray(body.imageIds)||body.imageIds.length>100||body.imageIds.some(x=>typeof x!=='string'||!validId.test(x))){
-     return NextResponse.json({error:'Invalid image IDs'},{status:400});
-    }
-    imageIds=body.imageIds as string[];
+  // Every sync backfills both files, including older products first edited now.
+  await updateText(token,folder+'description.txt',()=>storedDescription);
+  {
+   if(action==='images'&&(!Array.isArray(body.imageIds)||body.imageIds.length>100||body.imageIds.some(x=>typeof x!=='string'||!validId.test(x)))){
+    return NextResponse.json({error:'Invalid image IDs'},{status:400});
    }
-   let query=auth.client.from('product_images').select('id,kind,filename,storage_path,sort_order').eq('product_id',id).eq('owner_id',auth.user.id).order('sort_order',{ascending:true});
-   if(imageIds)query=query.in('id',imageIds.length?imageIds:['00000000-0000-0000-0000-000000000000']);
+   const query=auth.client.from('product_images').select('id,kind,filename,storage_path,sort_order').eq('product_id',id).eq('owner_id',auth.user.id).order('sort_order',{ascending:true});
    const {data,error}=await query;
    if(error)throw Error('Could not retrieve saved image metadata: '+error.message);
    const entries=(data??[]) as ImageRow[];
