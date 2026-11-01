@@ -1,5 +1,6 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@supabase/supabase-js';
+import {revalidatePath} from 'next/cache';
 
 export const runtime='nodejs';
 export const maxDuration=45;
@@ -56,6 +57,8 @@ export async function POST(req:NextRequest){
    console.error('Showcase upload failed',result.status,detail);
    return NextResponse.json({error:'Could not upload showcase image ('+result.status+'): '+detail},{status:502});
   }
+  // The public store caches its catalog briefly; refresh it after a new photo.
+  revalidatePath('/store');
   return NextResponse.json({path:'github:'+path,url:'https://raw.githubusercontent.com/'+repository+'/'+branch+'/'+path});
  }catch(error){
   console.error('Showcase upload failed',error instanceof Error?error.message:'Unknown error');
