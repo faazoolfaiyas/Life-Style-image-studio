@@ -1,5 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import type {ReactNode} from 'react';
+import Link from 'next/link';
 import {ArrowRight, ArrowUpRight, CheckCircle2, MapPin, MessageCircle, Phone, ShoppingBag, Sparkles} from 'lucide-react';
 import PublicImageGallery from '../../public-image-gallery';
 import type {ViewImage} from '../../image-viewer';
@@ -86,12 +87,12 @@ export default async function SharedProduct({params}:Props){
   <header className="lp-header">
    <div className="lp-header-inner">
     <div className="lp-brand" aria-label="Life Style"><span className="lp-brand-icon">LS</span><span className="lp-brand-wordmark">Life Style<small>THE COLLECTION</small></span></div>
-    <nav className="lp-top-links" aria-label="Page navigation"><a href="#product-details">Details</a><a href="#store-contact">Contact</a></nav>
+    <nav className="lp-top-links" aria-label="Page navigation"><Link href="/store">Shop all</Link><a href="#product-details">Details</a><a href="#store-contact">Contact</a></nav>
     <a className="lp-header-enquire" href={enquiryUrl} target="_blank" rel="noopener noreferrer"><MessageCircle size={17}/> <span>Ask about this item</span><ArrowUpRight size={15}/></a>
    </div>
   </header>
   <main className="lp-main">
-   <div className="lp-breadcrumb"><span>Life Style</span><span className="lp-chevron">/</span><span>Collection</span><span className="lp-chevron">/</span><strong>{product.name}</strong></div>
+   <div className="lp-breadcrumb"><span>Life Style</span><span className="lp-chevron">/</span><Link href="/store">Collection</Link><span className="lp-chevron">/</span><strong>{product.name}</strong></div>
    <div className="lp-product-layout">
     <section className="lp-gallery-column" aria-label="Product photography">
      {photosUnavailable?<div className="lp-gallery-empty"><ShoppingBag size={30}/><strong>Photos temporarily unavailable</strong><p>Please try again later or ask our team for product details.</p></div>:<PublicImageGallery images={gallery} productName={product.name}/>}
@@ -119,6 +120,7 @@ export default async function SharedProduct({params}:Props){
     <div className="lp-store-info-item"><div className="lp-store-info-icon"><Phone size={20}/></div><div><strong>Speak with us</strong><p><a href={'tel:+94'+storePhone.slice(1)}>{storePhone}</a> / <a href={'tel:+94'+storePhoneOther.slice(1)}>{storePhoneOther}</a></p></div></div>
    </section>
   </main>
-  <footer className="lp-footer"><div><span className="lp-footer-logo">LS</span><span><strong>Life Style</strong><small>Kattankudy, Sri Lanka</small></span></div><span>Thoughtful style, simply presented.</span><a href="#product-details">Back to product <ArrowRight size={15}/></a></footer>
+  <a className="lp-mobile-enquire" href={enquiryUrl} target="_blank" rel="noopener noreferrer"><MessageCircle size={19}/> Ask about this item <ArrowUpRight size={17}/></a>
+  <footer className="lp-footer"><div><span className="lp-footer-logo">LS</span><span><strong>Life Style</strong><small>Kattankudy, Sri Lanka</small></span></div><span>Thoughtful style, simply presented.</span><Link href="/store">Shop more <ArrowRight size={15}/></Link></footer>
  </div>;
 }
