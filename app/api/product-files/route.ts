@@ -92,6 +92,17 @@ export async function POST(req:NextRequest){
    const {data,error}=await query;
    if(error)throw Error('Could not retrieve saved image metadata: '+error.message);
    const entries=(data??[]) as ImageRow[];
+   // Include completed showcase images as well, including those added manually
+   // to GitHub. Sync can therefore repair or backfill the history at any time.
+   const folderResponse=await fetch(fileUrl(folder+'generated')+'?ref='+branch,{headers:headers(token),cache:'no-store'});
+   type ShowcaseFile={name:string;path:string;type:string};
+   let showcase:ShowcaseFile[]=[];
+   if(folderResponse.ok){
+    const files=await folderResponse.json() as ShowcaseFile[]|ShowcaseFile;
+    if(Array.isArray(files))showcase=files.filter(file=>file.type==='file'&&/\.(jpe?g|png|webp|gif|avif)$/i.test(file.name));
+   }else if(folderResponse.status!==404){
+    throw Error('Could not list showcase photos ('+folderResponse.status+')');
+   }
    await updateText(token,folder+'updates.txt',current=>{
     const existing=current||'Life Style product image uploads\n';
     const lines=entries.filter(image=>!existing.includes('['+image.id+']')).map(image=>{
@@ -99,7 +110,10 @@ export async function POST(req:NextRequest){
      const path=image.storage_path.replace(/[\r\n\t]/g,' ');
      return new Date().toISOString()+' ['+image.id+'] '+image.kind+' | '+name+' | '+path;
     });
-    return existing.replace(/\s*$/,'\n')+(lines.length?lines.join('\n')+'\n':'');
+    const newShowcase=showcase.filter(file=>!existing.includes('[showcase:'+file.path+']'))
+     .map(file=>new Date().toISOString()+' [showcase:'+file.path+'] showcase | '+file.name.replace(/[\r\n\t]/g,' ').slice(0,200)+' | github:'+file.path);
+    const additions=[...lines,...newShowcase];
+    return existing.replace(/\s*$/,'\n')+(additions.length?additions.join('\n')+'\n':'');
    });
   }
   return NextResponse.json({ok:true});
