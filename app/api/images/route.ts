@@ -20,6 +20,10 @@ export async function POST(req:NextRequest){
  try{
   const form=await req.formData(),file=form.get('file'),productId=String(form.get('productId')||''),kind=String(form.get('kind')||'');
   if(!(file instanceof File)||!['main','color','other'].includes(kind)||!/^[0-9a-f-]{36}$/i.test(productId))return NextResponse.json({error:'Invalid image upload'},{status:400});
+  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,{auth:{persistSession:false}});
+  const {data:existingProduct,error:checkError}=await db.from('products').select('owner_id').eq('id',productId).maybeSingle();
+  if(checkError)return NextResponse.json({error:'Could not check product permissions'},{status:503});
+  if(existingProduct&&existingProduct.owner_id!==user.id)return NextResponse.json({error:'Cannot upload images to another account\'s product'},{status:403});
   if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)||file.size>4*1024*1024)return NextResponse.json({error:'Use JPEG, PNG, WebP or GIF under 4 MB'},{status:400});
   const ext=({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'} as Record<string,string>)[file.type];
   const path='products/'+productId+'/'+(kind==='color'?'colors':kind)+'/'+crypto.randomUUID()+'.'+ext;
