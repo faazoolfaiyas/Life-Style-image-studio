@@ -5,6 +5,7 @@ import type { TouchEvent } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, LoaderCircle, RefreshCw, Trash2, Pencil, Share2, Check, X, Save, WandSparkles, UploadCloud, ImagePlus, FolderSync, Eye, Plus } from 'lucide-react';
 import { supabase } from './cloud';
 import ImageViewer, {SharePopup, type ViewImage} from './image-viewer';
+import GeneratedUpload from './generated-upload';
 import { generatedImages, type GeneratedImage, type DeleteProgress, type Photo, type Product, type AddImagesProgress } from './cloud';
 
 type Filter = 'all' | 'main' | 'color' | 'other';
@@ -282,14 +283,15 @@ export default function ProductDetails({
               <RefreshCw size={17} aria-hidden="true" /> Refresh
             </button>
           </div>
-          {generatedLoading ? <p className="generated-empty" role="status">Checking generated folder…</p> :
+          <GeneratedUpload key={product.id} productId={product.id} onUploaded={()=>{setGeneratedLoading(true);setRefreshCount(x=>x+1);}}/>
+          {generatedLoading ? <p className="generated-empty" role="status">Checking finished photos…</p> :
             generatedError ? <p className="generated-error" role="alert">{generatedError}</p> :
             generated.length ? <div className="generated-grid">{generated.map(image => (
               <button type="button" key={image.path} onClick={()=>openImage(image.url)} className="generated-image-card" title={'View '+image.name}>
                 <img src={image.url} alt={image.name} loading="lazy" />
                 <span>{image.name} <ExternalLink size={13} aria-hidden="true" /></span>
               </button>
-            ))}</div> : <p className="generated-empty">No showcase photos yet. Add finished product photos to this product’s generated folder, then refresh. Your public page never exposes reference uploads.</p>}
+            ))}</div> : <p className="generated-empty">No public photos yet. Choose the finished photos above and upload them straight to this product’s customer gallery.</p>}
         </section>
 
         <section className="details-description" aria-labelledby="details-description-title">
