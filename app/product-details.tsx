@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, LoaderCircle, RefreshCw, Trash2, Pencil, Share2, Check, X, Save, WandSparkles } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, LoaderCircle, RefreshCw, Trash2, Pencil, Share2, Check, X, Save, WandSparkles, UploadCloud, ImagePlus, FolderSync, Eye, Plus } from 'lucide-react';
 import { supabase } from './cloud';
 import ImageViewer, {SharePopup, type ViewImage} from './image-viewer';
-import { generatedImages, type GeneratedImage, type DeleteProgress, type Kind, type Photo, type Product } from './cloud';
+import { generatedImages, type GeneratedImage, type DeleteProgress, type Photo, type Product, type AddImagesProgress } from './cloud';
 
 type Filter = 'all' | 'main' | 'color' | 'other';
 type Props = {
@@ -18,6 +18,8 @@ type Props = {
   onBack: () => void;
   onCopy: () => void;
   onSaveDescription: (description:string) => Promise<void>;
+  onAddImages:(files:File[],kind:'main'|'color'|'other',onProgress:(p:AddImagesProgress)=>void)=>Promise<{warning:string}>;
+  onSyncFiles:()=>Promise<void>;
   onDelete: (onProgress: (progress: DeleteProgress) => void) => Promise<void>;
   onFilter: (filter: Filter) => void;
   onSlide: (index: number) => void;
@@ -40,6 +42,8 @@ export default function ProductDetails({
   onBack,
   onCopy,
   onSaveDescription,
+  onAddImages,
+  onSyncFiles,
   onDelete,
   onFilter,
   onSlide,
@@ -69,6 +73,32 @@ export default function ProductDetails({
   const saveDescription=async()=>{setDescriptionSaving(true);setDescriptionError('');try{await onSaveDescription(descriptionDraft);setEditingDescription(false);setDescriptionNotice('Description saved successfully.')}catch(e){setDescriptionError(e instanceof Error?e.message:'Could not save description.')}finally{setDescriptionSaving(false)}};
   const copyDescription=async()=>{try{await navigator.clipboard.writeText(product.description);setDescriptionCopied(true);setDescriptionNotice('Description copied to clipboard.');window.setTimeout(()=>setDescriptionCopied(false),2000)}catch{setDescriptionError('Copy unavailable. Select and copy the description manually.')}};
   const shareDescription=async()=>{setDescriptionError('');if(!navigator.share){try{await navigator.clipboard.writeText(product.description);setDescriptionNotice('Sharing is unavailable on this device. Description copied instead.')}catch{setDescriptionError('Sharing is not supported in this browser.')}}else{try{await navigator.share({text:product.description})}catch(e){if(e instanceof Error&&e.name!=='AbortError')setDescriptionError('Could not share description. Please try copying it instead.')}}};
+  const [newImageKind,setNewImageKind]=useState<'main'|'color'|'other'>('main');
+  const [pendingFiles,setPendingFiles]=useState<File[]>([]);
+  const [uploadingImages,setUploadingImages]=useState(false);
+  const [imageProgress,setImageProgress]=useState<AddImagesProgress|null>(null);
+  const [imageUploadError,setImageUploadError]=useState('');
+  const [imageUploadNotice,setImageUploadNotice]=useState('');
+  const [syncingFiles,setSyncingFiles]=useState(false);
+  const uploadInput=useRef<HTMLInputElement>(null);
+  const addImages=async()=>{
+   if(!pendingFiles.length||uploadingImages)return;
+   setImageUploadError('');setImageUploadNotice('');setUploadingImages(true);
+   try{
+    const result=await onAddImages(pendingFiles,newImageKind,setImageProgress);
+    setImageUploadNotice(result.warning||pendingFiles.length+' image(s) added. updates.txt is current.');
+    setPendingFiles([]);
+    if(uploadInput.current)uploadInput.current.value='';
+   }catch(error){setImageUploadError(error instanceof Error?error.message:'Could not upload images.')}
+   finally{setUploadingImages(false);setImageProgress(null)}
+  };
+  const syncFiles=async()=>{
+   if(syncingFiles)return;
+   setSyncingFiles(true);setImageUploadError('');setImageUploadNotice('');
+   try{await onSyncFiles();setImageUploadNotice('Repository files are up to date.')}
+   catch(error){setImageUploadError(error instanceof Error?error.message:'Could not sync repository files.')}
+   finally{setSyncingFiles(false)}
+  };
   const [deleting, setDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState<DeleteProgress | null>(null);
   const [deleteError, setDeleteError] = useState('');
@@ -136,10 +166,11 @@ export default function ProductDetails({
           Products
         </button>
         <div className="details-actions">
-          <button type="button" onClick={() => setShareTarget({url:window.location.origin+'/share/'+product.id,title:'product'})} className="details-copy">
+          <button type="button" onClick={onCopy} className="details-copy">
             <Copy size={18} aria-hidden="true" />
             {copied ? 'Copied' : 'Copy link'}
           </button>
+          <a href={'/share/'+product.id} target="_blank" rel="noopener noreferrer" className="details-copy details-public-link"><Eye size={17} aria-hidden="true"/> Public page <ExternalLink size={14}/></a>
           {folderUrl && (
             <button type="button" onClick={() => setShareTarget({url:folderUrl!,title:'product folder'})} className="details-copy" aria-label="Copy product GitHub folder URL">
               <Copy size={18} aria-hidden="true" />
@@ -162,8 +193,9 @@ export default function ProductDetails({
 
       <div className="details-layout">
         <div className="details-summary">
-          <p className="eyebrow">PRODUCT DETAILS</p>
+          <p className="eyebrow">PRODUCT WORKSPACE · EDIT & MANAGE</p>
           <h1 id="details-title" className="details-title">{product.name}</h1>
+          <div className="details-stats"><span><ImagePlus size={15}/>{product.photos.length} reference photos</span><span><Eye size={15}/>{generated.length} public photos</span><span><FolderSync size={15}/> GitHub synced files</span></div>
           <div className="details-filters" role="group" aria-label="Product image filters">
             {filters.map(({ id, label }) => (
               <button
@@ -231,7 +263,7 @@ export default function ProductDetails({
                   aria-label={photo.label || `Image ${index + 1}`}
                   aria-pressed={index === activeSlide}
                   className={`details-thumb ${index === activeSlide ? 'is-active' : ''}`}
-                  onClick={() => {onSlide(index);openImage(photo.data)}}
+                  onClick={() => onSlide(index)}
                 >
                   <img src={photo.data} alt="" loading="lazy" decoding="async" />
                 </button>
@@ -243,8 +275,8 @@ export default function ProductDetails({
         <section className="generated-gallery" aria-labelledby="generated-gallery-title">
           <div className="generated-gallery-header">
             <div>
-              <p className="eyebrow">GENERATED FOLDER</p>
-              <h2 id="generated-gallery-title">Generated images <span className="generated-count">{generated.length}</span></h2>
+              <p className="eyebrow">CUSTOMER-FACING IMAGES</p>
+              <h2 id="generated-gallery-title">Public showcase <span className="generated-count">{generated.length}</span></h2>
             </div>
             <button type="button" className="details-copy" disabled={generatedLoading} onClick={() => {setGeneratedLoading(true);setRefreshCount(x=>x+1);}} aria-label="Refresh generated images">
               <RefreshCw size={17} aria-hidden="true" /> Refresh
@@ -257,7 +289,7 @@ export default function ProductDetails({
                 <img src={image.url} alt={image.name} loading="lazy" />
                 <span>{image.name} <ExternalLink size={13} aria-hidden="true" /></span>
               </button>
-            ))}</div> : <p className="generated-empty">No generated images yet. Images added to this product’s generated folder will appear here when refreshed.</p>}
+            ))}</div> : <p className="generated-empty">No showcase photos yet. Add finished product photos to this product’s generated folder, then refresh. Your public page never exposes reference uploads.</p>}
         </section>
 
         <section className="details-description" aria-labelledby="details-description-title">
@@ -265,6 +297,24 @@ export default function ProductDetails({
           {editingDescription?<div className="details-description-editor"><label htmlFor="edit-product-description" className="sr-only">Edit product description</label><textarea id="edit-product-description" className="field details-description-textarea" value={descriptionDraft} onChange={e=>setDescriptionDraft(e.target.value)} disabled={descriptionSaving||descriptionGenerating} placeholder="Add product details or notes for AI generation…" rows={9}/><button type="button" className="ai-description-button details-description-generate" disabled={descriptionSaving||descriptionGenerating} onClick={generateDescription}>{descriptionGenerating?<LoaderCircle size={18} className="ai-description-spin"/>:<WandSparkles size={18}/>} {descriptionGenerating?'Generating description…':'Generate with AI'}</button>{descriptionGenerating&&<p className="details-description-ai-status" role="status">Creating your WhatsApp description with emoji prices…</p>}{descriptionNotice&&<p role="status" className="details-description-success">{descriptionNotice}</p>}<div className="details-description-editor-actions"><button type="button" className="details-description-action" disabled={descriptionSaving||descriptionGenerating} onClick={()=>{setEditingDescription(false);setDescriptionDraft(product.description);setDescriptionError('')}}><X size={16}/> Cancel</button><button type="button" className="primary-btn" disabled={descriptionSaving||descriptionGenerating||descriptionDraft===product.description} onClick={saveDescription}>{descriptionSaving?<LoaderCircle size={16} className="ai-description-spin"/>:<Save size={16}/>} {descriptionSaving?'Saving…':'Save changes'}</button></div></div>:product.description?<p className="details-description-text">{product.description}</p>:<p className="details-description-empty">No description yet. Tap Edit to add one.</p>}
           {descriptionError&&<p role="alert" className="details-description-error">{descriptionError}</p>}
           {descriptionNotice&&!editingDescription&&<p role="status" className="details-description-success">{descriptionNotice}</p>}
+        </section>
+        <section className="details-upload" aria-labelledby="details-upload-title">
+          <div className="details-upload-head">
+            <div><p className="eyebrow">GROW YOUR PRODUCT GALLERY</p><h2 id="details-upload-title">Add more photos</h2></div>
+            <span className="details-upload-icon"><ImagePlus size={20}/></span>
+          </div>
+          <p className="details-upload-intro">Upload new reference photos without replacing any existing images.</p>
+          <div className="details-upload-types" role="group" aria-label="Photo type">
+            {([{id:'main',label:'Main'},{id:'color',label:'Colors'},{id:'other',label:'More'}] as const).map(item=><button key={item.id} type="button" disabled={uploadingImages} aria-pressed={newImageKind===item.id} onClick={()=>setNewImageKind(item.id)}>{item.label}</button>)}
+          </div>
+          <input ref={uploadInput} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif" className="sr-only" aria-label="Choose new product images" disabled={uploadingImages} onChange={e=>{setPendingFiles(Array.from(e.target.files||[]));setImageUploadError('');setImageUploadNotice('')}}/>
+          <button type="button" className="details-upload-picker" disabled={uploadingImages} onClick={()=>uploadInput.current?.click()}><Plus size={18}/>{pendingFiles.length?pendingFiles.length+' image(s) selected':'Choose photos from device'}<span>JPEG · PNG · WebP · GIF</span></button>
+          {pendingFiles.length>0&&<div className="details-upload-selected" aria-label="Pending photos">{pendingFiles.map((file,i)=><span key={file.name+i}>{file.name}</span>)}</div>}
+          {uploadingImages&&imageProgress&&<div className="details-upload-progress" role="status"><div><LoaderCircle size={17} className="ai-description-spin"/><span>{imageProgress.stage==='syncing'?'Updating repository records':imageProgress.stage==='saving'?'Saving image record':'Uploading '+imageProgress.filename}</span><strong>{imageProgress.stage==='syncing'?'Syncing':(imageProgress.index+1)+' / '+imageProgress.total}</strong></div><div className="delete-progress-track"><span style={{width:imageProgress.percent+'%'}}/></div></div>}
+          <button type="button" className="primary-btn details-upload-submit" disabled={uploadingImages||pendingFiles.length===0} onClick={addImages}>{uploadingImages?<LoaderCircle size={18} className="ai-description-spin"/>:<UploadCloud size={18}/>} {uploadingImages?'Saving photos…':'Upload to product'}</button>
+          <div className="details-sync-row"><span>Keep description.txt and updates.txt current.</span><button type="button" disabled={syncingFiles||uploadingImages} onClick={syncFiles}>{syncingFiles?<LoaderCircle size={16} className="ai-description-spin"/>:<FolderSync size={16}/>} Sync files</button></div>
+          {imageUploadError&&<p className="details-upload-error" role="alert">{imageUploadError}</p>}
+          {imageUploadNotice&&<p className="details-upload-success" role="status">{imageUploadNotice}</p>}
         </section>
       </div>
 
