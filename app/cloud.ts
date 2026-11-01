@@ -180,7 +180,9 @@ export async function uploadShowcaseImages(
    uploaded++;
   }catch(error){
    const reason=error instanceof Error?error.message:'The upload failed.';
-   throw Error((uploaded?uploaded+' photo(s) saved successfully. ':'')+'Failed on '+original.name+': '+reason);
+   const failure=new Error((uploaded?uploaded+' photo(s) saved successfully. ':'')+'Failed on '+original.name+': '+reason) as Error&{uploaded:number};
+   failure.uploaded=uploaded;
+   throw failure;
   }
  }
  onProgress?.({index:files.length,total:files.length,percent:100,filename:'Syncing image history',stage:'syncing'});
