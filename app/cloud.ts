@@ -140,3 +140,7 @@ export async function addProductImages(
  }catch(e){warning='Images saved, but updates.txt could not be synced. Use Sync files to retry.';console.error('Image history sync',e)}
  return {warning};
 }
+
+export async function syncProductFiles(productId:string):Promise<void>{
+ await api('/api/product-files',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sync',productId})});
+}
