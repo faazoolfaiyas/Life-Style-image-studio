@@ -1,6 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import type {ReactNode} from 'react';
-import {ArrowRight, ArrowUpRight, CheckCircle2, MapPin, MessageCircle, Phone, ShieldCheck, ShoppingBag, Sparkles} from 'lucide-react';
+import {ArrowRight, ArrowUpRight, CheckCircle2, MapPin, MessageCircle, Phone, ShoppingBag, Sparkles} from 'lucide-react';
 import PublicImageGallery from '../../public-image-gallery';
 import type {ViewImage} from '../../image-viewer';
 
@@ -53,7 +53,7 @@ function WhatsAppMessage({message}:{message:string}){
 export default async function SharedProduct({params}:Props){
  const {id}=await params;
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)){
-  return <main className="lp-page lp-unavailable"><ShoppingBag size={34}/><h1>This product link isn't valid</h1><p>Please ask the store for a fresh product link.</p></main>;
+  return <main className="lp-page lp-unavailable"><ShoppingBag size={34}/><h1>This product link is not valid</h1><p>Please ask the store for a fresh product link.</p></main>;
  }
  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,{auth:{persistSession:false}});
  // Never load or render the original/reference photo records on public pages.
